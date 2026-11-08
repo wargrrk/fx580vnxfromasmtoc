@@ -111,3 +111,15 @@ uint16_t copy_string_constant(uint8_t *ds, uint16_t index, uint16_t dst)
     smart_strcpy_nn(ds, dst, get_string_constant(ds, index));
     return smart_strlen_n(ds, dst);
 }
+
+/* 0x24010 - convert a byte to two uppercase hexadecimal characters.
+ * The high nibble is the low byte of the return value. */
+uint16_t hex_byte(uint8_t value)
+{
+    uint8_t high = (uint8_t)(value >> 4);
+    uint8_t low = (uint8_t)(value & 0x0F);
+
+    high = (uint8_t)(high < 10 ? high + '0' : high + 'A' - 10);
+    low = (uint8_t)(low < 10 ? low + '0' : low + 'A' - 10);
+    return (uint16_t)(high | ((uint16_t)low << 8));
+}

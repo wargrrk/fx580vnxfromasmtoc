@@ -135,4 +135,9 @@ void test_string(void)
     test_strcpy();
     test_strcat();
     test_smart();
+    for (unsigned value = 0; value < 256; value++) {
+        Args args = {.er = {(uint16_t)value}, .nstk = 0};
+        uint16_t rom_ret = run_rom(0x24010, &args, "hex_byte");
+        check_ret("hex_byte", rom_ret, hex_byte((uint8_t)value));
+    }
 }

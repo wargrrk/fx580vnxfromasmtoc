@@ -30,6 +30,7 @@ uint16_t smart_strcat_nn(uint8_t *ds, uint16_t dst, uint16_t src);
 /* string.c - 0x24BD6 (pointer table) and 0x2AC9E (expanding copy) */
 uint16_t get_string_constant(uint8_t *ds, uint16_t index);
 uint16_t copy_string_constant(uint8_t *ds, uint16_t index, uint16_t dst);
+uint16_t hex_byte(uint8_t value);
 
 /* mem.c - 0x26FFA, 0x0A8AA, 0x1EB94, 0x09D34 */
 uint16_t memcpy_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n);
