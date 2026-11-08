@@ -1,6 +1,8 @@
 /* t_mem.c - differential tests for the block memory cluster. */
 #include "harness.h"
 
+#include <string.h>
+
 #include "../src/runtime.h"
 
 static void test_memcpy(void)
@@ -103,6 +105,105 @@ static void test_count_edges(void)
     check_mem("memset_n(0xF000)", 0xD200, CMP_END);
 }
 
+static void test_shift_range_offsets(void)
+{
+    static const uint8_t lowers[] = {0, 10, 50, 200};
+    static const uint8_t starts[] = {0, 1, 3};
+    static const uint16_t deltas[] = {1, 0x7FFF, 0xFFFF};
+
+    for (size_t l = 0; l < sizeof(lowers); l++) {
+        for (size_t s = 0; s < sizeof(starts); s++) {
+            for (size_t d = 0; d < sizeof(deltas) / sizeof(deltas[0]); d++) {
+                random_image(0xB1000u + (uint32_t)(l * 100 + s * 10 + d));
+                image[0xD169] = 6;
+                for (uint8_t index = 0; index < 6; index++) {
+                    uint16_t entry = (uint16_t)(0xDBE4u + (uint16_t)index * 8);
+                    image[entry] = (uint8_t)(0xE0 + index * 13);
+                    image[entry + 1] = (uint8_t)(0x30 + index);
+                    image[entry + 2] = (uint8_t)(index * 40);
+                    image[entry + 3] = 180;
+                }
+                image[0xDBE7u + (uint16_t)starts[s] * 8] = 180;
+
+                Args args = {
+                    .er = {deltas[d], (uint16_t)(lowers[l] | (starts[s] << 8))},
+                    .nstk = 0,
+                };
+                run_rom(0x2F832, &args, "shift_range_offsets");
+                begin_c();
+                shift_range_offsets(after_c, deltas[d], lowers[l], starts[s]);
+                check_mem("shift_range_offsets", 0xDBE4, 0xDC14);
+            }
+        }
+    }
+}
+
+static void test_compare_bcd_records(void)
+{
+    static const uint8_t first_values[] = {0, 1, 4, 5, 9};
+    static const uint8_t second_values[] = {0, 1, 4, 5, 9};
+    for (size_t a = 0; a < sizeof(first_values); a++) {
+        for (size_t b = 0; b < sizeof(second_values); b++) {
+            random_image(0xB2000u + (uint32_t)(a * 10 + b));
+            for (uint16_t i = 0; i < 10; i++) {
+                uint8_t digit_a = (uint8_t)((a * 3 + i) % 10);
+                uint8_t digit_b = (uint8_t)((b * 2 + i) % 10);
+                image[0xD000 + i] = (uint8_t)((digit_a << 4) | digit_a);
+                image[0xD010 + i] = (uint8_t)((digit_b << 4) | digit_b);
+            }
+            image[0xD001] = first_values[a];
+            image[0xD011] = second_values[b];
+            image[0xD009] = 0x10;
+            image[0xD019] = 0xE0;
+            Args args = {.nstk = 0};
+            uint16_t rom_ret = run_rom(0x1CA78, &args, "compare_bcd_records");
+            begin_c();
+            uint8_t c_ret = compare_bcd_records(after_c);
+            check_ret("compare_bcd_records", (uint16_t)(rom_ret & 0xFF), c_ret);
+            check_mem("compare_bcd_records", 0xD000, 0xD01B);
+        }
+    }
+
+    for (uint8_t invalid = 0; invalid < 2; invalid++) {
+        random_image(0xB2010u + invalid);
+        image[0xD009] = invalid ? 0xF0 : 0x10;
+        image[0xD019] = invalid ? 0xF0 : 0xE0;
+        Args args = {.nstk = 0};
+        uint16_t rom_ret = run_rom(0x1CA78, &args, "compare_bcd_records invalid");
+        begin_c();
+        uint8_t c_ret = compare_bcd_records(after_c);
+        check_ret("compare_bcd_records invalid", (uint16_t)(rom_ret & 0xFF), c_ret);
+        check_mem("compare_bcd_records invalid", 0xD000, 0xD01B);
+    }
+}
+
+static void test_decimal_record_predicate(void)
+{
+    static const uint8_t statuses[] = {0, 1, 5, 9, 10, 0xF0};
+    static const uint8_t lows[] = {0, 1, 5, 9, 10, 0x99};
+    static const uint8_t highs[] = {0, 4, 5, 6, 9};
+
+    for (size_t s = 0; s < sizeof(statuses); s++) {
+        for (size_t lo = 0; lo < sizeof(lows); lo++) {
+            for (size_t hi = 0; hi < sizeof(highs); hi++) {
+                for (uint8_t fill = 0; fill < 2; fill++) {
+                    random_image(0xB3000u + (uint32_t)(s * 100 + lo * 10 + hi * 2 + fill));
+                    memset(image + 0xD002, fill ? 0x10 : 0x00, 8);
+                    image[0xD000] = lows[lo];
+                    image[0xD001] = highs[hi];
+                    image[0xD009] = statuses[s];
+                    Args args = {.nstk = 0};
+                    uint16_t rom_ret = run_rom(0x19FD8, &args, "decimal_record_predicate");
+                    begin_c();
+                    uint8_t c_ret = decimal_record_predicate(after_c);
+                    check_ret("decimal_record_predicate", (uint16_t)(rom_ret & 0xFF), c_ret);
+                    check_mem("decimal_record_predicate", 0xD000, 0xD01A);
+                }
+            }
+        }
+    }
+}
+
 /* assign_var stores two fixed-width halfs; the mode byte at 0xD111 turns the
  * second move on (69 = cmp? / 196 = the matrix-ish dispatch), slots run 0-12
  * with the ROM taking any 8-bit index */
@@ -192,6 +293,20 @@ static void test_var_helpers(void)
     }
 }
 
+static void test_init_numeric_state(void)
+{
+    static const uint8_t selectors[] = {0, 4, 5, 6, 255};
+    for (size_t i = 0; i < sizeof(selectors); i++) {
+        random_image(840u + (unsigned)i);
+        image[0xD02F] = selectors[i];
+        Args args = {.nstk = 0};
+        run_rom(0x1B124, &args, "init_numeric_state");
+        begin_c();
+        init_numeric_state(after_c);
+        check_mem("init_numeric_state", 0xD010, 0xD01A);
+    }
+}
+
 void test_mem(void)
 {
     test_memcpy();
@@ -199,6 +314,10 @@ void test_mem(void)
     test_memset();
     test_memzero();
     test_count_edges();
+    test_shift_range_offsets();
+    test_compare_bcd_records();
+    test_decimal_record_predicate();
     test_assign_var();
     test_var_helpers();
+    test_init_numeric_state();
 }

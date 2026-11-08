@@ -64,6 +64,122 @@ uint16_t memzero(uint8_t *ds, uint16_t dst, uint16_t n)
     return memset_n(ds, dst, 0, n);
 }
 
+/* 0x2F832 - shift offsets in later table entries whose keys are in range. */
+void shift_range_offsets(uint8_t *ds, uint16_t delta, uint8_t lower,
+                         uint8_t start)
+{
+    uint8_t count = ds[0xD169];
+    uint8_t upper = ds[(uint16_t)(0xDBE7u + (uint16_t)start * 8)];
+
+    for (uint8_t index = (uint8_t)(start + 1); index < count; index++) {
+        uint16_t entry = (uint16_t)(0xDBE4u + (uint16_t)index * 8);
+        uint8_t key = ds[(uint16_t)(entry + 2)];
+
+        if (key >= lower && key < upper) {
+            uint16_t offset = (uint16_t)(ds[entry] |
+                                         ((uint16_t)ds[(uint16_t)(entry + 1)] << 8));
+            offset = (uint16_t)(offset + delta);
+            ds[entry] = (uint8_t)offset;
+            ds[(uint16_t)(entry + 1)] = (uint8_t)(offset >> 8);
+        }
+    }
+}
+
+/* 0x1CA78 - compare two packed-BCD records after normalizing the second. */
+uint8_t compare_bcd_records(uint8_t *ds)
+{
+    uint8_t first_status = ds[0xD009];
+    uint8_t second_status = ds[0xD019];
+
+    if (first_status >= 0xF0 || second_status >= 0xF0)
+        return 0;
+
+    uint8_t first_digit = ds[0xD001];
+    uint8_t second_digit = ds[0xD011];
+    uint8_t first_high = first_digit >= 5;
+    uint8_t second_high = second_digit >= 5;
+    if (first_high != second_high) {
+        if (first_high) {
+            second_digit = (uint8_t)((second_digit + 5) % 10);
+        } else {
+            do {
+            second_digit = (uint8_t)((second_digit + 5) % 10);
+            } while (second_digit >= 5);
+        }
+        ds[0xD011] = second_digit;
+        ds[0xD00A] = 6;
+    } else {
+        ds[0xD00A] = 0;
+    }
+
+    uint16_t first_word = (uint16_t)(ds[0xD000] | ((uint16_t)ds[0xD001] << 8));
+    uint16_t second_word = (uint16_t)(ds[0xD010] | ((uint16_t)ds[0xD011] << 8));
+    if (first_word < second_word)
+        return 1;
+    if (first_word > second_word)
+        return 0;
+
+    for (int16_t i = 9; i >= 2; i--) {
+        uint8_t first = ds[(uint16_t)(0xD000 + i)];
+        uint8_t second = ds[(uint16_t)(0xD010 + i)];
+        if (first < second)
+            return 1;
+        if (first > second)
+            return 0;
+    }
+    return 0;
+}
+
+static uint8_t bcd_subtract(uint8_t left, uint8_t right)
+{
+    int low = (left & 0x0F) - (right & 0x0F);
+    int borrow = low < 0;
+    if (borrow)
+        low -= 6;
+    int high = (left >> 4) - (right >> 4) - borrow;
+    if (high < 0)
+        high -= 6;
+    return (uint8_t)(((high << 4) & 0xF0) | (low & 0x0F));
+}
+
+/* 0x19FD8 - validate the packed value's digit count and decimal range. */
+uint8_t decimal_record_predicate(uint8_t *ds)
+{
+    uint8_t status = ds[0xD009];
+    if (status == 0)
+        return 0;
+    if (status >= 10)
+        return 1;
+
+    uint8_t zero_digits = 0;
+    uint16_t address = 0xD002;
+    for (uint8_t remaining = 8; remaining != 0; remaining--) {
+        uint8_t packed = ds[address];
+        if (packed & 0x0F)
+            break;
+        zero_digits++;
+        if (packed != 0)
+            break;
+        zero_digits++;
+        address++;
+    }
+    if (zero_digits >= 10)
+        zero_digits = (uint8_t)(zero_digits + 6);
+
+    uint8_t high = ds[0xD001];
+    if (high >= 5)
+        high = bcd_subtract(high, 5);
+    if (high == 0)
+        return 1;
+
+    uint8_t low = ds[0xD000];
+    if (low > 9)
+        return 1;
+
+    uint8_t remaining = bcd_subtract(20, low);
+    return zero_digits < remaining;
+}
+
 #define MODE_ADDR 0xD111   /* mode byte: <58 normal, 68/69 comp?, 196 ... */
 
 /* the little state bytes the cluster keeps beside the mode byte */
@@ -139,4 +255,17 @@ uint8_t var_mode_attr(uint8_t *ds)
     cell = (uint16_t)(cell + 0x38E6u);
     cell = (uint16_t)(cell + ds[CELL_SEL_ADDR]);
     return ds[cell];
+}
+
+/* 0x1B124 - initialize the numeric mode's ten-byte state block. */
+void init_numeric_state(uint8_t *ds)
+{
+    static const uint8_t low_mode[] = {1, 1, 0, 0, 0, 0, 0, 0, 0, 9};
+    static const uint8_t vector_mode[] = {0, 1, 144, 148, 103, 50, 150, 7, 87, 1};
+    static const uint8_t other_mode[] = {2, 1, 0, 0, 0, 0, 0, 0, 0, 1};
+    const uint8_t *state = ds[0xD02F] < 5 ? low_mode
+                         : ds[0xD02F] == 5 ? vector_mode : other_mode;
+
+    for (size_t i = 0; i < 10; i++)
+        ds[(uint16_t)(0xD010u + i)] = state[i];
 }

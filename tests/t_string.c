@@ -128,6 +128,101 @@ static void test_smart(void)
     }
 }
 
+static void test_format_number_token(void)
+{
+    static const uint16_t values[] = {0, 1, 9, 10, 59, 99, 100, 32767, 0x8000, 0x8001, 0xFFFF};
+    static const uint8_t alternate[] = {0, 1};
+    static const uint8_t extended[] = {0, 1};
+    static const uint8_t fonts[] = {8, 10, 14};
+    const uint16_t source = 0xD200;
+    const uint16_t output = 0xD300;
+
+    for (size_t a = 0; a < sizeof(alternate); a++) {
+        for (size_t e = 0; e < sizeof(extended); e++) {
+            for (size_t f = 0; f < sizeof(fonts); f++) {
+                for (size_t v = 0; v < sizeof(values) / sizeof(values[0]); v++) {
+                    random_image(0x43000u + (uint32_t)(a * 1000 + e * 500 + f * 100 + v));
+                    image[0xD14E] = alternate[a];
+                    image[0xD13F] = extended[e];
+                    image[0xD137] = fonts[f];
+                    image[source + 16] = (uint8_t)values[v];
+                    image[source + 17] = (uint8_t)(values[v] >> 8);
+                    Args args = {.er = {source, output}, .nstk = 0};
+                    run_rom(0x20462, &args, "format_number_token");
+                    begin_c();
+                    format_number_token(after_c, source, output);
+                    check_mem("format_number_token", output, output + 12);
+                }
+            }
+        }
+    }
+}
+
+static void test_unpack_decimal_record(void)
+{
+    static const uint8_t tags[] = {0, 1, 9, 0x10, 0x80};
+    static const uint8_t exponents[] = {0, 1, 4, 5, 6, 9, 255};
+    const uint16_t source = 0xD500;
+    const uint16_t output = 0xD600;
+
+    for (size_t t = 0; t < sizeof(tags); t++) {
+        for (size_t e = 0; e < sizeof(exponents); e++) {
+            random_image(0x43000u + (uint32_t)(t * 20 + e));
+            image[source] = tags[t];
+            image[source + 8] = (uint8_t)(0x26 + e * 17);
+            image[source + 9] = exponents[e];
+            for (uint16_t i = 1; i < 8; i++)
+                image[source + i] = (uint8_t)(i * 0x13 + e * 7);
+            Args args = {.er = {source, output}, .nstk = 0};
+            uint16_t rom_ret = run_rom(0x203E6, &args, "unpack_decimal_record");
+            begin_c();
+            uint8_t c_ret = unpack_decimal_record(after_c, source, output);
+            check_ret("unpack_decimal_record", (uint16_t)(rom_ret & 0xFF), c_ret);
+            check_mem("unpack_decimal_record", output, output + 24);
+        }
+    }
+}
+
+static void test_replace_trailing_token(void)
+{
+    static const uint8_t strings[][5] = {
+        {49, 0, 0, 0, 0},
+        {96, 49, 0, 0, 0},
+        {192, 49, 0, 0, 0},
+        {'A', 'B', 'C', 0, 0},
+        {'A', 49, 'B', 0, 0},
+    };
+    const uint16_t string = 0xD700;
+    for (size_t i = 0; i < sizeof(strings) / sizeof(strings[0]); i++) {
+        random_image(0x43100u + (uint32_t)i);
+        memcpy(image + string, strings[i], sizeof(strings[i]));
+        Args args = {.er = {string, 0x00E7}, .nstk = 0};
+        uint16_t rom_ret = run_rom(0x208A6, &args, "replace_trailing_token");
+        begin_c();
+        uint16_t c_ret = replace_trailing_token(after_c, string, 0xE7);
+        check_ret("replace_trailing_token", rom_ret, c_ret);
+        check_mem("replace_trailing_token", string - 1, string + sizeof(strings[i]));
+    }
+}
+
+static void test_expand_string_token(void)
+{
+    static const uint8_t markers[] = {0, 250, 251, 253, 254};
+    const uint16_t output = 0xD300;
+    random_image(0x48000u);
+    for (size_t m = 0; m < sizeof(markers); m++) {
+        for (unsigned index = 0; index < 256; index++) {
+            uint16_t code = (uint16_t)(((uint16_t)markers[m] << 8) | index);
+            Args args = {.er = {code, output}, .nstk = 0};
+            uint16_t rom_ret = run_rom(0x208F2, &args, "expand_string_token");
+            begin_c();
+            uint8_t c_ret = expand_string_token(after_c, code, output);
+            check_ret("expand_string_token", (uint16_t)(rom_ret & 0xFF), c_ret);
+            check_mem("expand_string_token", output, output + 34);
+        }
+    }
+}
+
 void test_string(void)
 {
     test_strlen();
@@ -135,6 +230,10 @@ void test_string(void)
     test_strcpy();
     test_strcat();
     test_smart();
+    test_format_number_token();
+    test_unpack_decimal_record();
+    test_replace_trailing_token();
+    test_expand_string_token();
     for (unsigned value = 0; value < 256; value++) {
         Args args = {.er = {(uint16_t)value}, .nstk = 0};
         uint16_t rom_ret = run_rom(0x24010, &args, "hex_byte");

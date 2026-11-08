@@ -20,4 +20,25 @@
  */
 uint16_t prev_unit_off(uint8_t *ds, uint16_t lo, uint16_t probe);
 
+/* 0x20AA8 - encode an editor mode/value token at `output`. */
+uint16_t encode_editor_token(uint8_t *ds, uint8_t value, uint16_t output);
+
+/* 0x0DC1E - adjust editor cursor/submode state for an editor command. */
+uint8_t adjust_editor_state(uint8_t *ds, uint16_t command);
+
+/* 0x2ABE4 - map editor control codes to their diagnostic ASCII letters. */
+uint16_t editor_special_to_ascii(uint16_t code);
+
+/* 0x2035C - map an editor byte to its compact character class. */
+uint8_t editor_classify_code(uint8_t code);
+
+/* 0x0E7A8 - encode an editor character index into its internal token. */
+uint16_t encode_editor_character(uint8_t *ds, uint16_t output, uint8_t index);
+
+/* 0x15FE4 - classify an editor byte according to its marker type. */
+uint8_t classify_editor_token(uint8_t value, uint8_t marker);
+
+/* 0x0D742 - clamp an editor offset using the stack-passed extent limit. */
+uint16_t clamp_editor_offset(uint16_t start, uint16_t probe, uint16_t limit);
+
 #endif /* NX_EDIT_H */

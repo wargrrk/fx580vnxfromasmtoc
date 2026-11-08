@@ -65,6 +65,28 @@ void screen_blend(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask)
     }
 }
 
+void screen_blend_immediate(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask)
+{
+    screen_blend(ds, addr, (uint8_t)(value & mask), mask);
+}
+
+void screen_pixel(uint8_t *ds, uint16_t xy, int clear, int check_bounds)
+{
+    uint8_t x = (uint8_t)xy;
+    uint8_t y = (uint8_t)(xy >> 8);
+
+    if (check_bounds && (x > 191 || y > 63))
+        return;
+
+    uint16_t base = ds[CURRENT_BUF_ADDR] != 0 ? 0xDDD4u : 0xE3D4u;
+    uint16_t address = (uint16_t)(base + (uint16_t)(24u * y) + (x >> 3));
+    uint8_t mask = (uint8_t)(0x80u >> (x & 7));
+    if (clear)
+        ds[address] &= (uint8_t)~mask;
+    else
+        ds[address] |= mask;
+}
+
 static uint16_t buffer_addr(uint16_t base, uint8_t stride, uint16_t xy,
                             uint16_t *out)
 {
@@ -257,6 +279,35 @@ uint8_t line_print(uint8_t *ds, uint16_t xy, uint16_t str, uint16_t *str_out)
     if (str_out)
         *str_out = str;
     return count;
+}
+
+uint8_t print_mode_label(uint8_t *ds)
+{
+    uint8_t mode = ds[0xD111];
+    uint8_t submode = ds[0xD112];
+    uint8_t index = 0;
+
+    ds[FONT_SIZE_ADDR] = 10;
+    if (mode == 69) {
+        if (submode == 5)
+            index = 1;
+        else if (submode == 6)
+            index = 2;
+    } else if (mode == 75) {
+        uint8_t detail = ds[0xD149];
+        if (detail < 4) {
+            if (submode == 4)
+                index = (uint8_t)(3 + detail);
+            else if (submode == 5)
+                index = (uint8_t)(7 + detail);
+            else if (submode == 6)
+                index = (uint8_t)(11 + detail);
+        }
+    }
+
+    uint16_t entry = (uint16_t)(0x3F74u + 2u * index);
+    uint16_t string = (uint16_t)(ds[entry] | ((uint16_t)ds[(uint16_t)(entry + 1)] << 8));
+    return line_print(ds, 0x0100, string, NULL);
 }
 
 uint16_t str_decompress_print(uint8_t *ds, uint16_t str, uint16_t buf,

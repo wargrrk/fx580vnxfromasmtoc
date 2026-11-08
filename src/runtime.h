@@ -31,12 +31,20 @@ uint16_t smart_strcat_nn(uint8_t *ds, uint16_t dst, uint16_t src);
 uint16_t get_string_constant(uint8_t *ds, uint16_t index);
 uint16_t copy_string_constant(uint8_t *ds, uint16_t index, uint16_t dst);
 uint16_t hex_byte(uint8_t value);
+uint16_t format_number_token(uint8_t *ds, uint16_t source, uint16_t output);
+uint8_t unpack_decimal_record(uint8_t *ds, uint16_t source, uint16_t output);
+uint16_t replace_trailing_token(uint8_t *ds, uint16_t string, uint8_t value);
+uint8_t expand_string_token(uint8_t *ds, uint16_t code, uint16_t output);
 
 /* mem.c - 0x26FFA, 0x0A8AA, 0x1EB94, 0x09D34 */
 uint16_t memcpy_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n);
 uint16_t memmove_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n);
 uint16_t memset_n(uint8_t *ds, uint16_t dst, uint8_t value, uint16_t n);
 uint16_t memzero(uint8_t *ds, uint16_t dst, uint16_t n);
+void shift_range_offsets(uint8_t *ds, uint16_t delta, uint8_t lower,
+						 uint8_t start);
+uint8_t compare_bcd_records(uint8_t *ds);
+uint8_t decimal_record_predicate(uint8_t *ds);
 
 /* mem.c - 0x09DE6: variable-slot save (plus its matrix/vector shadow) */
 uint16_t assign_var(uint8_t *ds, uint8_t slot, uint16_t src);
@@ -45,5 +53,6 @@ uint16_t assign_var(uint8_t *ds, uint8_t slot, uint16_t src);
 void store_0D10E(uint8_t *ds, uint16_t v);
 uint16_t mode193_value(uint8_t *ds, uint16_t arg);
 uint8_t var_mode_attr(uint8_t *ds);
+void init_numeric_state(uint8_t *ds);
 
 #endif /* NX_RUNTIME_H */

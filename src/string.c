@@ -123,3 +123,165 @@ uint16_t hex_byte(uint8_t value)
     low = (uint8_t)(low < 10 ? low + '0' : low + 'A' - 10);
     return (uint16_t)(high | ((uint16_t)low << 8));
 }
+
+/* 0x20462 - format the signed word at source+16 as the firmware's digit token. */
+uint16_t format_number_token(uint8_t *ds, uint16_t source, uint16_t output)
+{
+    uint16_t value = (uint16_t)(ds[(uint16_t)(source + 16)] |
+                                ((uint16_t)ds[(uint16_t)(source + 17)] << 8));
+    uint16_t cursor = output;
+    uint8_t alternate = ds[0xD14E] != 0;
+    uint8_t extended = ds[0xD13F] == 1;
+    uint8_t negative = (value & 0x8000) != 0;
+
+    if (alternate) {
+        ds[cursor++] = 45;
+        if (negative)
+            ds[cursor++] = 192;
+    } else {
+        if (extended) {
+            ds[cursor++] = 251;
+            ds[cursor++] = 58;
+        } else {
+            ds[cursor++] = 144;
+        }
+        if (extended)
+            ds[cursor++] = 251;
+        ds[cursor++] = (uint8_t)(extended ? (negative ? 60 : 59)
+                                           : (negative ? 146 : 145));
+    }
+
+    if (negative)
+        value = (uint16_t)(~value + 1);
+    uint8_t tens = (uint8_t)(value / 10);
+    uint8_t ones = (uint8_t)(value % 10);
+
+    if (tens != 0) {
+        if (alternate) {
+            ds[cursor++] = (uint8_t)(tens + '0');
+        } else if (extended) {
+            ds[cursor++] = 251;
+            ds[cursor++] = (uint8_t)(tens + (ds[0xD137] == 14 ? 68 : 48));
+        } else {
+            if (ds[0xD137] == 14)
+                ds[cursor++] = 4;
+            ds[cursor++] = (uint8_t)(tens + 160);
+        }
+    }
+
+    if (extended && !alternate)
+        ds[cursor++] = 251;
+    ds[cursor++] = (uint8_t)(ones + ((alternate || extended) ? 48 : 160));
+    ds[cursor] = 0;
+    return output;
+}
+
+/* 0x203E6 - expand a packed decimal record into its 15 digit nibbles. */
+uint8_t unpack_decimal_record(uint8_t *ds, uint16_t source, uint16_t output)
+{
+    uint8_t tag = ds[source];
+
+    if (tag & 0xF0)
+        return 0;
+
+    for (uint16_t i = 0; i < 24; i++)
+        ds[(uint16_t)(output + i)] = 0;
+    if (tag == 0)
+        return 1;
+
+    uint8_t exponent = ds[(uint16_t)(source + 9)];
+    uint8_t packed_exp = ds[(uint16_t)(source + 8)];
+    uint16_t adjusted_exp = (uint16_t)(((packed_exp >> 4) * 10) + (packed_exp & 0x0F));
+    if (exponent == 0 || exponent == 5)
+        adjusted_exp = (uint16_t)(adjusted_exp + 0xFF9C);
+    ds[(uint16_t)(output + 16)] = (uint8_t)adjusted_exp;
+    ds[(uint16_t)(output + 17)] = (uint8_t)(adjusted_exp >> 8);
+    ds[(uint16_t)(output + 15)] = exponent >= 5 ? 1 : 0;
+
+    for (uint16_t i = 0; i < 15; i++) {
+        uint8_t packed = ds[(uint16_t)(source + (i + 1) / 2)];
+        ds[(uint16_t)(output + i)] = (i & 1) ? (packed >> 4) : (packed & 0x0F);
+    }
+    return 1;
+}
+
+/* 0x208A6 - replace a trailing token, preserving the ROM's sentinel forms. */
+uint16_t replace_trailing_token(uint8_t *ds, uint16_t string, uint8_t value)
+{
+    uint16_t end = string;
+
+    if (ds[string] == 49 && ds[(uint16_t)(string + 1)] == 0) {
+        ds[string] = value;
+        return string;
+    }
+    if ((ds[string] == 96 || ds[string] == 192) &&
+        ds[(uint16_t)(string + 1)] == 49 && ds[(uint16_t)(string + 2)] == 0) {
+        ds[(uint16_t)(string + 1)] = value;
+        return string;
+    }
+
+    while (ds[end] != 0)
+        end++;
+    ds[end] = value;
+    ds[(uint16_t)(end + 1)] = 0;
+    return (uint16_t)(end + 1);
+}
+
+static uint16_t read_word(const uint8_t *ds, uint16_t address)
+{
+    return (uint16_t)(ds[address] | ((uint16_t)ds[(uint16_t)(address + 1)] << 8));
+}
+
+uint8_t expand_string_token(uint8_t *ds, uint16_t code, uint16_t output)
+{
+    uint8_t index = (uint8_t)code;
+    uint8_t marker = (uint8_t)(code >> 8);
+    uint16_t pointer_table, length_table;
+    uint16_t output_length = 0;
+    uint8_t result = index;
+
+    if (index == 0) {
+        ds[output] = 0;
+        return result;
+    }
+
+    switch (marker) {
+    case 0:   pointer_table = 0x2432; length_table = 0x2612; break;
+    case 250: pointer_table = 0x2360; length_table = 0x23E2; break;
+    case 251: pointer_table = 0x1E82; length_table = 0x1F22; break;
+    case 253: pointer_table = 0x1F72; length_table = 0x2032; break;
+    case 254: pointer_table = 0x2092; length_table = 0x2270; break;
+    default:
+        ds[output] = 0;
+        return result;
+    }
+
+    uint16_t source = read_word(ds, (uint16_t)(pointer_table + 2u * index));
+    uint8_t descriptor = ds[(uint16_t)(length_table + index)];
+    uint8_t remaining = descriptor & 0x0F;
+    uint8_t offset = descriptor >> 4;
+    result = remaining;
+    if (remaining == 0) {
+        ds[output] = 0;
+        return result;
+    }
+    if (offset != 15)
+        source = (uint16_t)(source + offset);
+
+    while (output_length < 33) {
+        uint8_t value = ds[source++];
+        ds[(uint16_t)(output + output_length++)] = value;
+        if (value == 4 || value >= 240)
+            continue;
+        remaining--;
+        if (remaining != 0)
+            continue;
+        if (offset == 15) {
+            ds[(uint16_t)(output + output_length++)] = 40;
+            result++;
+        }
+        break;
+    }
+    ds[(uint16_t)(output + output_length)] = 0;
+    return result;
+}

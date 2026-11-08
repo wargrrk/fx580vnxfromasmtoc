@@ -39,6 +39,17 @@ static void test_screen_blend(void)
                     begin_c();
                     screen_blend(after_c, addrs[a], values[v], masks[k]);
                     check_mem("screen_blend", 0xD000, 0xE9D4);
+
+                    random_image((uint32_t)(a * 700 + m * 70 + k * 9 + v + 14000));
+                    image[0xD138] = modes[m];
+                    Args immediate = {
+                        .er = {(uint16_t)(values[v] | ((uint16_t)masks[k] << 8)), addrs[a]},
+                        .nstk = 0,
+                    };
+                    run_rom(0x093C0, &immediate, "screen_blend_immediate");
+                    begin_c();
+                    screen_blend_immediate(after_c, addrs[a], values[v], masks[k]);
+                    check_mem("screen_blend_immediate", 0xD000, 0xE9D4);
                 }
             }
         }
@@ -80,6 +91,29 @@ static void test_screen_addr(void)
         for (int cur = 0; cur < 2; cur++) {
             check_addr(0x094C8, "screen_addr", xys[i], (uint8_t)cur);
             check_addr(0x094BE, "lcd_addr", xys[i], (uint8_t)cur);
+        }
+    }
+}
+
+static void test_screen_pixel(void)
+{
+    static const uint16_t xys[] = {0x0000, 0x0007, 0x0008, 0x0101, 0x073F, 0x3FBF};
+    for (uint8_t buffer = 0; buffer < 2; buffer++) {
+        for (size_t i = 0; i < sizeof(xys) / sizeof(xys[0]); i++) {
+            for (unsigned kind = 0; kind < 3; kind++) {
+                random_image(0xB8000u + buffer * 100u + (uint32_t)(i * 3 + kind));
+                image[0xD139] = buffer;
+                Args args = {.er = {xys[i]}, .nstk = 0};
+                if (kind == 0)
+                    run_rom(0x091E2, &args, "screen_pixel_set");
+                else if (kind == 1)
+                    run_rom(0x091E6, &args, "screen_pixel_clear");
+                else
+                    run_rom(0x091EA, &args, "screen_pixel_set_checked");
+                begin_c();
+                screen_pixel(after_c, xys[i], kind == 1, kind != 0);
+                check_mem("screen_pixel", 0xDDD4, 0xE9D4);
+            }
         }
     }
 }
@@ -234,9 +268,34 @@ static void test_line_print(void)
         x = (uint8_t)(next_rnd() % 200);
         y = (uint8_t)(next_rnd() % 70);
         one_line(79000u + (uint32_t)i, (uint16_t)((y << 8) | x),
-                 buf, n + 1, fonts[next_rnd() % 3],
-                 (uint8_t)(next_rnd() & 1), (uint8_t)(next_rnd() % 6),
-                 (uint8_t)(next_rnd() & 1), (uint8_t)(next_rnd() % 3));
+             buf, n + 1, fonts[next_rnd() % 3],
+             (uint8_t)(next_rnd() & 1), (uint8_t)(next_rnd() % 6),
+             (uint8_t)(next_rnd() & 1), (uint8_t)(next_rnd() % 3));
+    }
+}
+
+static void test_print_mode_label(void)
+{
+    static const uint8_t modes[] = {0, 69, 75};
+    static const uint8_t submodes[] = {1, 4, 5, 6, 7};
+    static const uint8_t details[] = {0, 1, 2, 3, 4};
+
+    for (size_t m = 0; m < sizeof(modes); m++) {
+        for (size_t s = 0; s < sizeof(submodes); s++) {
+            for (size_t d = 0; d < sizeof(details); d++) {
+                random_image(0xA5000u + (uint32_t)(m * 100 + s * 10 + d));
+                image[0xD111] = modes[m];
+                image[0xD112] = submodes[s];
+                image[0xD149] = details[d];
+                Args args = {.nstk = 0};
+                uint16_t rom_ret = run_rom(0x2C3FE, &args, "print_mode_label");
+                begin_c();
+                uint8_t c_ret = print_mode_label(after_c);
+                check_ret("print_mode_label", (uint16_t)(rom_ret & 0xFF), c_ret);
+                check_mem("print_mode_label", 0xD137, 0xD13A);
+                check_mem("print_mode_label screen", 0xDDD4, 0xE9D4);
+            }
+        }
     }
 }
 
@@ -345,8 +404,10 @@ void test_print(void)
 {
     test_screen_blend();
     test_screen_addr();
+    test_screen_pixel();
     test_char_print();
     test_line_print();
+    test_print_mode_label();
     test_get_string_constant();
     test_copy_string_constant();
     test_decompress_print();

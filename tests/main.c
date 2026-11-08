@@ -13,6 +13,7 @@ int main(int argc, char **argv)
     test_print();
     test_keyboard();
     test_edit();
+    test_diagnostic();
     test_emu();
 
     printf("%d checks, %d failures\n", checks, failures);

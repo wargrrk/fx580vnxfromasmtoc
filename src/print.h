@@ -19,6 +19,10 @@
  * 0xD138.  `mask` selects the bits that participate.  `value` is and-ed with
  * `mask` first (unless the mask is zero). */
 void screen_blend(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask);
+void screen_blend_immediate(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask);
+
+/* 0x091E2 / 0x091E6 / 0x091EA - set or clear one pixel in the current buffer. */
+void screen_pixel(uint8_t *ds, uint16_t xy, int clear, int check_bounds);
 
 /* 0x094C8: address of the byte containing pixel (x, y) in the current packed
  * buffer, plus the bit position (x & 7) as the return value.  The y coordinate
@@ -58,5 +62,8 @@ uint16_t str_decompress_print(uint8_t *ds, uint16_t str, uint16_t buf,
  * number of printed characters and *str_out receives the pointer the loop
  * stopped at (the terminator when the string ran out). */
 uint8_t line_print(uint8_t *ds, uint16_t xy, uint16_t str, uint16_t *str_out);
+
+/* 0x2C3FE - print the label selected by the current mode/submode at row 1. */
+uint8_t print_mode_label(uint8_t *ds);
 
 #endif
