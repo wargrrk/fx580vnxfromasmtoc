@@ -239,4 +239,11 @@ void test_string(void)
         uint16_t rom_ret = run_rom(0x24010, &args, "hex_byte");
         check_ret("hex_byte", rom_ret, hex_byte((uint8_t)value));
     }
+
+    /* 0x0ED88 - every byte, since the boundary at 0xF0 is the whole point */
+    for (unsigned value = 0; value < 256; value++) {
+        Args args = {.er = {(uint16_t)value}, .nstk = 0};
+        uint16_t rom_ret = run_rom(0x0ED88, &args, "byte_is_lead");
+        check_ret("byte_is_lead", rom_ret, byte_is_lead(after_c, (uint16_t)value));
+    }
 }

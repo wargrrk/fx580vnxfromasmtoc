@@ -380,3 +380,12 @@ uint16_t table_slot_fold(uint8_t *ds, uint16_t delta, uint16_t extra,
 
     return 0;
 }
+
+/* 0x09D26 - clear the 20-byte block at 0xD16C.  The owner of the block is not
+ * identified yet, so the name keeps the address rather than inventing a
+ * meaning; the callers are the state-reset branch at 0x1FC72 and three more
+ * in the 0x25Exx/0x26xxx region. */
+uint16_t clear_block_d16c(uint8_t *ds)
+{
+    return memzero(ds, 0xD16Cu, 20);
+}

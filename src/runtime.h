@@ -27,6 +27,9 @@ uint16_t smart_strlen_n(uint8_t *ds, uint16_t s);
 uint16_t smart_strcpy_nn(uint8_t *ds, uint16_t dst, uint16_t src);
 uint16_t smart_strcat_nn(uint8_t *ds, uint16_t dst, uint16_t src);
 
+/* string.c - 0x0ED88 */
+uint16_t byte_is_lead(uint8_t *ds, uint16_t value);
+
 /* string.c - 0x24BD6 (pointer table) and 0x2AC9E (expanding copy) */
 uint16_t get_string_constant(uint8_t *ds, uint16_t index);
 uint16_t copy_string_constant(uint8_t *ds, uint16_t index, uint16_t dst);
@@ -44,6 +47,9 @@ uint16_t memcpy_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n);
 uint16_t memmove_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n);
 uint16_t memset_n(uint8_t *ds, uint16_t dst, uint8_t value, uint16_t n);
 uint16_t memzero(uint8_t *ds, uint16_t dst, uint16_t n);
+
+/* mem.c - 0x09D26 */
+uint16_t clear_block_d16c(uint8_t *ds);
 void shift_range_offsets(uint8_t *ds, uint16_t delta, uint8_t lower,
 						 uint8_t start);
 uint16_t record_template_06(uint8_t *ds, uint16_t dst);

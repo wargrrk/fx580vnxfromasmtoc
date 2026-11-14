@@ -320,4 +320,15 @@ void test_mem(void)
     test_assign_var();
     test_var_helpers();
     test_init_numeric_state();
+
+    /* 0x09D26 - fixed-range clear, so one random image is enough */
+    for (int rep = 0; rep < 4; rep++) {
+        random_image((uint32_t)(0xD16C + rep));
+        Args args = {.nstk = 0};
+        uint16_t rom_ret = run_rom(0x09D26, &args, "clear_block_d16c");
+        begin_c();
+        check_ret("clear_block_d16c", rom_ret, clear_block_d16c(after_c));
+        check_mem("clear_block_d16c", 0xD160, 0xD190);
+        check_mem("clear_block_d16c", RAM_BASE, CMP_END);
+    }
 }

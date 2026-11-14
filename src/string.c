@@ -345,3 +345,14 @@ uint16_t string_copy_with_nul(uint8_t *ds, uint16_t dst, uint16_t src)
     memcpy_nn(ds, dst, src, n);
     return dst;
 }
+
+/* 0x0ED88 - true for 0xF0..0xFF only, i.e. the lead-byte range of the text
+ * encoding: the scanner at 0x0A568 rejects a byte that fails this test and
+ * then compares the survivors against 0xF1 and 0xF2 explicitly.  The compare
+ * in the ROM is `cmp r2, 240` on the low byte alone - the high half of er0 is
+ * overwritten at entry - and it behaves unsigned, so 0xF0 itself passes. */
+uint16_t byte_is_lead(uint8_t *ds, uint16_t value)
+{
+    (void)ds;
+    return ((uint8_t)value >= 0xF0u) ? 1 : 0;
+}
