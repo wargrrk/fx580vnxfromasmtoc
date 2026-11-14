@@ -26,7 +26,7 @@ static void test_memcpy(void)
             begin_c();
             uint16_t c = memcpy_nn(after_c, dst, src, n);
             check_ret("memcpy_nn", r, c);
-            check_mem("memcpy_nn", RAM_BASE, CMP_END);
+            check_mem_all("memcpy_nn");
         }
     }
 }
@@ -49,7 +49,7 @@ static void test_memmove(void)
             begin_c();
             uint16_t c = memmove_nn(after_c, dst, src, n);
             check_ret("memmove_nn", r, c);
-            check_mem("memmove_nn", RAM_BASE, CMP_END);
+            check_mem_all("memmove_nn");
         }
     }
 }
@@ -68,7 +68,7 @@ static void test_memset(void)
             begin_c();
             uint16_t c = memset_n(after_c, dst, vals[v], n);
             check_ret("memset_n", r, c);
-            check_mem("memset_n", RAM_BASE, CMP_END);
+            check_mem_all("memset_n");
         }
     }
 }
@@ -85,7 +85,7 @@ static void test_memzero(void)
         begin_c();
         uint16_t c = memzero(after_c, dst, n);
         check_ret("memzero", r, c);
-        check_mem("memzero", RAM_BASE, CMP_END);
+        check_mem_all("memzero");
     }
 }
 
@@ -346,6 +346,6 @@ void test_mem(void)
         begin_c();
         check_ret("clear_block_d16c", rom_ret, clear_block_d16c(after_c));
         check_mem("clear_block_d16c", 0xD160, 0xD190);
-        check_mem("clear_block_d16c", RAM_BASE, CMP_END);
+        check_mem_all("clear_block_d16c");
     }
 }

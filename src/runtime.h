@@ -23,6 +23,28 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* The data space only latches stores in three windows: RAM (0xD000-0xECFF),
+ * the SFRs (0xF000-0xF0FF) and the LCD framebuffer (0xF800-0xFFFF).  Everywhere
+ * else - the ROM image, the 0xF100-0xF7FF open bus, and the stack window the
+ * firmware keeps at 0xEC00-0xEFFF - a store is silently dropped by the chip,
+ * and the firmware depends on that (see the "table-driven stores" note in
+ * emu/nx8.c).  A C body that writes without this test therefore diverges from
+ * the ROM in exactly the place the ROM relies on the hardware to disagree. */
+#define DS_RAM_LO   0xD000u
+#define DS_SFR_HI   0xF0FFu
+#define DS_LCD_LO   0xF800u
+
+static inline int ds_writable(uint16_t addr)
+{
+    return (addr >= DS_RAM_LO && addr <= DS_SFR_HI) || addr >= DS_LCD_LO;
+}
+
+static inline void ds_put(uint8_t *ds, uint16_t addr, uint8_t value)
+{
+    if (ds_writable(addr))
+        ds[addr] = value;
+}
+
 /* string.c - 0x29A2C, 0x2AB26, 0x0E5C8, 0x2EDA0, 0x203B8, 0x203C2, 0x203D6 */
 uint16_t strlen_n(uint8_t *ds, uint16_t s);
 uint8_t byte_strlen_n(uint8_t *ds, uint16_t s);
@@ -42,6 +64,9 @@ uint16_t copy_string_constant(uint8_t *ds, uint16_t index, uint16_t dst);
 uint16_t hex_byte(uint8_t value);
 uint16_t format_number_token(uint8_t *ds, uint16_t source, uint16_t output);
 uint8_t unpack_decimal_record(uint8_t *ds, uint16_t source, uint16_t output);
+/* string.c - 0x0EA4A, 0x19808 */
+uint16_t decode_char_code(uint8_t *ds, uint16_t p);
+uint16_t to_packed_bcd(uint8_t value);
 uint16_t replace_trailing_token(uint8_t *ds, uint16_t string, uint8_t value);
 uint8_t expand_string_token(uint8_t *ds, uint16_t code, uint16_t output);
 uint16_t string_copy_with_nul(uint8_t *ds, uint16_t dst, uint16_t src);
@@ -74,10 +99,26 @@ uint16_t table_slot_fold(uint8_t *ds, uint16_t delta, uint16_t extra,
 /* mem.c - 0x09DE6: variable-slot save (plus its matrix/vector shadow) */
 uint16_t assign_var(uint8_t *ds, uint8_t slot, uint16_t src);
 
+/* mem.c - record/table helpers 0x1D950, 0x1DCCE, 0x2E2BC, 0x0E4AE */
+uint16_t record_init_kind(uint8_t *ds, uint16_t dst, uint8_t kind);
+uint16_t record_pair_copy(uint8_t *ds, uint16_t dst, uint16_t src);
+uint16_t table_index_scan(uint8_t *ds, uint16_t key);
+uint16_t fixup_0D10E(uint8_t *ds, uint16_t arg);
+
 /* mem.c - small leaf accessors of the mode/variable cluster */
 void store_0D10E(uint8_t *ds, uint16_t v);
 uint16_t mode193_value(uint8_t *ds, uint16_t arg);
 uint8_t var_mode_attr(uint8_t *ds);
 void init_numeric_state(uint8_t *ds);
+
+/* arith.c - the arithmetic core at 0x27000-0x31000 */
+uint16_t row_count_over_limit(uint8_t *ds, uint8_t add);
+uint16_t init_descriptor_record(uint8_t *ds, uint16_t dst);
+void draw_bar_frames(uint8_t *ds, uint8_t index);
+uint16_t pitch_from_state(uint8_t *ds, uint16_t arg);
+uint16_t tall_metric_from_font(uint8_t *ds, uint16_t arg);
+uint16_t small_metric_from_font(uint8_t *ds, uint16_t arg);
+uint16_t reset_flags_and_state(uint8_t *ds, uint16_t arg);
+void draw_submode_box(uint8_t *ds);
 
 #endif /* NX_RUNTIME_H */

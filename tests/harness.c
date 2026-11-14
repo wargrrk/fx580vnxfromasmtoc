@@ -10,6 +10,7 @@ uint8_t after_rom[IMG_SIZE];
 uint8_t after_c[IMG_SIZE];
 int checks;
 int failures;
+int rom_no_return;
 
 static Nx8Machine m;
 static uint8_t rom[0x40000];
@@ -21,12 +22,41 @@ uint32_t rnd(void)
     return rng_state >> 8;
 }
 
+/* Uniform random bytes almost never land on the values the firmware actually
+ * branches on - 0, 9, 10, 0x7F, 0x80, 0xF0, 181 - so a purely random image
+ * leaves every unsigned/signed boundary and every off-by-one untested.  About
+ * a third of the bytes are therefore drawn from the boundary table, and a
+ * short run of repeats is emitted now and then so that the loops which compare
+ * whole blocks see equal neighbours. */
+static const uint8_t boundary_bytes[] = {
+    0x00, 0x01, 0x02, 0x03, 0x09, 0x0A, 0x0B, 0x0D, 0x0F, 0x10,
+    0x1F, 0x20, 0x28, 0x30, 0x31, 0x36, 0x49, 0x4C, 0x55, 0x64,
+    0x7E, 0x7F, 0x80, 0x81, 0x9F, 0xA0, 0xB5, 0xC3, 0xEF, 0xF0,
+    0xF1, 0xF2, 0xFC, 0xFD, 0xFE, 0xFF
+};
+
 void random_image(uint32_t seed)
 {
     rng_state = seed * 2654435761u + 1;
     memcpy(image, rom, IMG_SIZE);
-    for (uint32_t a = RAM_BASE; a < IMG_SIZE; a++)
-        image[a] = (uint8_t)(rnd() & 0xFF);
+
+    uint32_t a = RAM_BASE;
+    while (a < IMG_SIZE) {
+        uint32_t roll = rnd() % 100u;
+        if (roll < 33u) {
+            uint32_t idx = rnd() % (sizeof(boundary_bytes) / sizeof(boundary_bytes[0]));
+            image[a++] = boundary_bytes[idx];
+        } else if (roll < 45u) {
+            uint8_t fill = (uint8_t)((rnd() & 0xFF) | 1u);
+            if ((rnd() & 3u) == 0)
+                fill = (uint8_t)(rnd() & 1u ? 0x00 : 0xFF);
+            uint32_t run = 2u + (rnd() % 6u);
+            while (run-- && a < IMG_SIZE)
+                image[a++] = fill;
+        } else {
+            image[a++] = (uint8_t)(rnd() & 0xFF);
+        }
+    }
 }
 
 void begin_c(void)
@@ -48,7 +78,8 @@ static void machine_reset(void)
     m.steps = 0;
 }
 
-uint16_t run_rom(uint32_t addr, const Args *a, const char *what)
+uint16_t run_rom_ex(uint32_t addr, const Args *a, const char *what,
+                    int *returned)
 {
     machine_reset();
     memcpy(m.mem + RAM_BASE, image + RAM_BASE, IMG_SIZE - RAM_BASE);
@@ -63,15 +94,27 @@ uint16_t run_rom(uint32_t addr, const Args *a, const char *what)
         }
     size_t steps = nx8_call(&m, addr, 8000000);
     if (steps == (size_t)-1) {
-        printf("FAIL %-24s ROM call did not return (fault=%d, %s, pc=%04X)\n",
-               what, m.faulted, m.fault_msg ? m.fault_msg : "-", m.pc);
-        failures++;
+        if (returned) {
+            *returned = 0;
+            rom_no_return++;
+        } else {
+            printf("FAIL %-24s ROM call did not return (fault=%d, %s, pc=%04X)\n",
+                   what, m.faulted, m.fault_msg ? m.fault_msg : "-", m.pc);
+            failures++;
+        }
         memset(after_rom, 0, sizeof(after_rom));
         return 0;
     }
+    if (returned)
+        *returned = 1;
     memcpy(after_rom, image, IMG_SIZE);
     memcpy(after_rom + RAM_BASE, m.mem + RAM_BASE, IMG_SIZE - RAM_BASE);
     return nx8_er(&m, 0);
+}
+
+uint16_t run_rom(uint32_t addr, const Args *a, const char *what)
+{
+    return run_rom_ex(addr, a, what, NULL);
 }
 
 void check_ret(const char *what, uint16_t rom_ret, uint16_t c_ret)
@@ -111,6 +154,17 @@ void check_mem(const char *what, uint32_t from, uint32_t to)
                total, shown);
     else
         printf("FAIL %-24s mem: %d differing bytes\n", what, total);
+}
+
+void check_mem_all_except(const char *what, uint32_t gap_lo, uint32_t gap_hi)
+{
+    check_mem(what, RAM_BASE, gap_lo);
+    check_mem(what, gap_hi, IMG_SIZE);
+}
+
+void check_mem_all(const char *what)
+{
+    check_mem_all_except(what, CMP_GAP_LO, CMP_GAP_HI);
 }
 
 void harness_load_rom(const char *path)

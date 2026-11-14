@@ -17,8 +17,20 @@
 
 static void ds_store(uint8_t *ds, uint16_t addr, uint8_t value)
 {
-    if (addr >= RAM_START)
-        ds[addr] = value;
+    /* the full map, not just the RAM base: a count that runs past 0xF0FF walks
+     * into open bus and past 0xFFFF wraps into ROM, and the chip drops both */
+    ds_put(ds, addr, value);
+}
+
+static void ds_store16(uint8_t *ds, uint16_t addr, uint16_t value)
+{
+    ds_store(ds, addr, (uint8_t)value);
+    ds_store(ds, (uint16_t)(addr + 1), (uint8_t)(value >> 8));
+}
+
+static uint16_t ds_load16(const uint8_t *ds, uint16_t addr)
+{
+    return (uint16_t)(ds[addr] | ((uint16_t)ds[(uint16_t)(addr + 1)] << 8));
 }
 
 /* 0x26FFA */
@@ -408,6 +420,142 @@ uint16_t clear_160_bytes(uint8_t *ds, uint16_t dst)
 uint16_t clear_200_bytes(uint8_t *ds, uint16_t dst)
 {
     return memzero(ds, dst, 200);
+}
+
+/* the state bytes the indexed table scan reports through */
+#define SCAN_COUNT_ADDR  0xD169  /* number of eight-byte entries */
+#define SCAN_BASE_ADDR   0xD144  /* subtracted from the key before matching */
+#define SCAN_TABLE       0xDBE6  /* ROM table, one key byte every eight */
+#define SCAN_RESULT_ADDR 0xD014  /* slot the found index lands in */
+
+/* 0x2E2BC - find a key in the eight-byte-stride table at 0xDBE6.  The key is
+ * matched against `key - ds[0xD144]` (8-bit wrap) and the index is written to
+ * 0xD014, whether or not the scan found anything.
+ *
+ * Two details of the original are kept because the differential test can see
+ * them: `bc lt` is *unsigned* (`BC LT` tests C, the signed form is `BC LTS`),
+ * and r1 is not merely a scratch register - it holds the base byte until the
+ * `sllc r1, 3` that builds the byte offset replaces it with the top three bits
+ * of the index.  The returned word is that r1 with the found index in the low
+ * half, so a scan that never ran reports the base byte, not the key's. */
+uint16_t table_index_scan(uint8_t *ds, uint16_t key)
+{
+    uint8_t count = ds[SCAN_COUNT_ADDR];
+    uint8_t base = ds[SCAN_BASE_ADDR];
+    uint8_t high = base;
+    uint8_t index = 0;
+    uint8_t target = (uint8_t)((uint8_t)key - base);
+
+    for (uint8_t i = 0; i < count; i++) {
+        high = (uint8_t)(i >> 5);
+        if (ds[(uint16_t)(SCAN_TABLE + 8u * i)] == target) {
+            index = i;
+            break;
+        }
+    }
+    ds_store(ds, SCAN_RESULT_ADDR, index);
+    return (uint16_t)(((uint16_t)high << 8) | index);
+}
+
+/* 0x1D950 - initialise a ten-byte record with a kind byte.  The record is
+ * `kind, 0, 0, 0, 0, 0, 0, 0, 0, kind != 0`, and a kind of 10 or more writes
+ * ten zero bytes instead.
+ *
+ * `cmp r2, 10 ; bc ge` is an unsigned test (`BC GE` checks C, `BC GES` is the
+ * signed one), so a kind byte of 0x80..0xFF still counts as 10 or more and
+ * takes the zero-filled path.  The `mov r0, ...` before the return
+ * only touches the low half, so the result keeps the low byte the path
+ * computed and the destination pointer's high byte: dst & 0xFF00 for a normal
+ * record, (dst & 0xFF00) | 0xF0 for the zero-filled one. */
+uint16_t record_init_kind(uint8_t *ds, uint16_t dst, uint8_t kind)
+{
+    /* every store here is at least two bytes wide, and the core forces word
+     * alignment by ignoring address bit 0 - an odd pointer therefore lands one
+     * byte lower */
+    dst = (uint16_t)(dst & 0xFFFEu);
+    if (kind >= 10) {
+        for (int i = 0; i < 10; i++)
+            ds_store(ds, (uint16_t)(dst + i), 0);
+        return (uint16_t)((dst & 0xFF00u) | 0xF0u);
+    }
+
+    ds_store16(ds, dst, kind);
+    for (int i = 2; i < 8; i++)
+        ds_store(ds, (uint16_t)(dst + i), 0);
+    ds_store(ds, (uint16_t)(dst + 8), 0);
+    ds_store(ds, (uint16_t)(dst + 9), kind != 0);
+    return (uint16_t)(dst & 0xFF00u);
+}
+
+/* 0x1DCCE - copy a twenty-byte record in two ten-byte halves.  The ROM loads
+ * er6 (two bytes) plus qr8 (the eight-byte octet r8..r15) and stores the same
+ * pair twice, so each half is exactly ten bytes.
+ *
+ * Order matters for an overlapping copy: the upper half at +10..+19 is read
+ * and written first, then the lower half at +0..+9.  The two halves meet in
+ * the middle, so a `dst` a few bytes below `src` really does behave differently
+ * from one a few bytes above.  The return value is the *unmasked* argument. */
+uint16_t record_pair_copy(uint8_t *ds, uint16_t dst, uint16_t src)
+{
+    uint16_t result = dst;
+    uint16_t d = (uint16_t)(dst & 0xFFFEu);
+    uint16_t s = (uint16_t)(src & 0xFFFEu);
+    uint8_t half[10];
+
+    /* The four phases must stay separate: the ROM reads ten bytes into
+     * er6+qr8, stores them, and only then reads the next ten, so when `d` and
+     * `s` overlap the lower half sees the bytes the upper half just wrote.  A
+     * loop that reads and writes one byte at a time - the obvious translation,
+     * and the one that was here first - is wrong for every overlapping pair,
+     * which the pointer sweep hits at once.
+     *
+     * The address masks are the core's alignment rule: `l`/`st` of more than
+     * one byte ignores bit 0, and `[ea+]` rounds the bumped address down to
+     * even again. */
+    for (int i = 0; i < 10; i++)
+        half[i] = ds[(uint16_t)(s + 10 + i)];
+    ds_put(ds, (uint16_t)(d + 11), half[1]);
+    ds_put(ds, (uint16_t)(d + 10), half[0]);
+    for (int i = 9; i >= 2; i--)
+        ds_put(ds, (uint16_t)(d + 10 + i), half[i]);
+
+    for (int i = 0; i < 10; i++)
+        half[i] = ds[(uint16_t)(s + i)];
+    ds_put(ds, (uint16_t)(d + 1), half[1]);
+    ds_put(ds, (uint16_t)(d + 0), half[0]);
+    for (int i = 9; i >= 2; i--)
+        ds_put(ds, (uint16_t)(d + i), half[i]);
+
+    return result;
+}
+
+/* 0x0E4AE - re-home the parked word at 0xD10E once the mode byte at 0xD116 is
+ * 1.  Only four values are tolerated as "already resident": 0xFC37..0xFC3B,
+ * 0xFC31 and the sentinel 0xFC36, which is rewritten as 0x00DC.  Everything
+ * else is answered with 0xFC37 and leaves memory untouched.
+ *
+ * The early exit returns er0 with the mode byte in the low half and the
+ * caller's r1 in the high half, which is what the C signature reproduces. */
+uint16_t fixup_0D10E(uint8_t *ds, uint16_t arg)
+{
+    uint8_t mode = ds[0xD116];
+
+    if (mode != 1)
+        return (uint16_t)((arg & 0xFF00u) | mode);
+
+    uint16_t v = ds_load16(ds, KEEP_ADDR);
+
+    if (v == 0xFC36) {
+        store_0D10E(ds, 0x00DC);
+        return 0x00DC;
+    }
+    if ((int16_t)v >= (int16_t)0xFC37 && (int16_t)v <= (int16_t)0xFC3B)
+        goto resident;
+    if ((int16_t)v != (int16_t)0xFC31)
+        return 0xFC37;
+resident:
+    store_0D10E(ds, 0);
+    return 0;
 }
 
 /* 0x15BF8 - clear the fixed 320-byte block at 0xD6B2. */

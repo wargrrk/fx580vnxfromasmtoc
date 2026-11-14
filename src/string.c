@@ -363,3 +363,39 @@ uint16_t append_string_1de5(uint8_t *ds, uint16_t dst)
 {
     return smart_strcat_nn(ds, dst, 0x1DE5u);
 }
+
+/* 0x0EA4A - decode one character from the text stream at `p`.  A lead byte
+ * below 0xF0 is a one-byte character, so the value is the byte itself.  A lead
+ * byte of 0xF0 or above opens a two-byte character: the ROM shifts the lead
+ * left by eight (`sllc r1,7` / `sllc r1,1` is a 16-bit shift by 8) and adds the
+ * following byte.
+ *
+ * `cmp r0, 240 ; bc lt` is unsigned, so the whole 0xF0..0xFF range takes the
+ * wide path.  The result is a plain 16-bit value in er0; nothing is written. */
+uint16_t decode_char_code(uint8_t *ds, uint16_t p)
+{
+    uint8_t lead = ds[p];
+
+    if (lead < 0xF0u)
+        return lead;
+    return (uint16_t)(((uint16_t)lead << 8) | ds[(uint16_t)(p + 1)]);
+}
+
+/* 0x19808 - the binary byte in r0 rendered as packed BCD.
+ *
+ * The ROM does it without a division: it takes the high nibble as a count and
+ * adds 22 (0x16, immediates are decimal) to a packed accumulator that DAA keeps
+ * in decimal, so `n * 16` lands as the decimal number 16n with the hundreds in
+ * r3.  The low nibble then goes through the binary-to-BCD `+6` fix-up and is
+ * added with DAA, which is the same thing as adding it in decimal.
+ *
+ * Written here as the arithmetic it computes: this is the classic 8-bit
+ * binary-to-packed-BCD conversion, result 0x0000..0x0255. */
+uint16_t to_packed_bcd(uint8_t value)
+{
+    uint8_t hundreds = (uint8_t)(value / 100u);
+    uint8_t tens = (uint8_t)((value / 10u) % 10u);
+    uint8_t units = (uint8_t)(value % 10u);
+
+    return (uint16_t)(((uint16_t)hundreds << 8) | ((tens << 4) | units));
+}

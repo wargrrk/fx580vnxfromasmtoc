@@ -32,12 +32,48 @@ on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 143 / 763 (18.7%) |
-| instructions | 3451 / 32751 (10.5%) |
+| routines | 157 / 763 (20.6%) |
+| instructions | 3709 / 32751 (11.3%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
 in the ROM.)
+
+## Instruction-set traps
+
+Properties of the nX-U8/100 that cost a full debugging cycle each while
+translating `0x1D950`/`0x1DCCE`/`0x2E2BC`/`0x08E62`.  They are checked against
+the core manual (`resource/nX-U8100 Core Instruction Manual.txt`) or against
+`emu/nx8.c`, which is the ground truth the diff-test compares to, not guessed:
+
+| trap | rule | where the manual says so |
+| --- | --- | --- |
+| `BC GE` / `BC LT` | **unsigned** (`C=0` / `C=1`); the signed forms are `BC GES` / `BC LTS` | §3.3, `Bcond` condition table |
+| multi-byte `l`/`st` | the effective address is forced even: address bit 0 is ignored, so an odd pointer rounds *down* | §1.3.5.3 "Word Boundaries" |
+| register groups | `er` = 2 bytes, `xr` = 4 (`r4..r7`), `qr` = 8 (`r8..r15`) | `tools/nx8.py`, instruction formats |
+| immediates | printed in **decimal** in `resource/disas.asm`: `add r2, 22` is +0x16 | `tools/disasm.py` |
+| `[ea+]` on a multi-byte access | the bump happens first and the result is rounded down to even *again*, so an odd `ea` stays usable | `load_store()`, `bump_ea()` in `emu/nx8.c` |
+| multi-byte `st` | the bytes go out in **descending** address order (`ix = length-1 .. 0`) | `load_store()` in `emu/nx8.c` |
+| `BC AL` | condition nibble 14 really is unconditional; a backward `bc al` is a plain loop jump and the exit test sits at the loop head | §3.3 condition table (1000..1110 = NE, EQ, NV, OV, PS, NS, AL) |
+
+Consequence worth stating once: a block copy must not read and write one byte at
+a time.  The ROM loads ten bytes into `er6`+`qr8`, stores them, and only then
+loads the next ten, so an overlapping source/destination sees the first store -
+the interleaved form is wrong for every overlapping pair.  Store *order* within
+one group, on the other hand, is unobservable for a byte copy, because every
+byte is written exactly once.
+
+Two more that only show up in return values:
+
+* `mov r0, x` writes the low byte only, so `er0` keeps the caller's `r1` in its
+  high half.  That is why `0x2805E` returns 0x0707/0x0505 and `0x2AB3C` returns
+  `arg & 0xFF00` rather than 0.
+* `DIV ERn, Rm` puts the quotient in `ERn` and the remainder in `Rm`, and its Z
+  flag reports the *dividend*.  `MUL ERn, Rm` multiplies the low bytes only.
+
+The arithmetic core at 0x27000-0x31000 contains no `daa`/`das` at all - its
+digit work is byte-decrement loops and `addc`/`cmpc` carry chains - so plain C
+loops model it; the decimal-adjust instructions live in other regions.
 
 ## How a routine gets translated
 
@@ -58,7 +94,7 @@ in the ROM.)
 
 ## Where the remaining work is
 
-The call graph is the schedule. `tools/frontier.py` currently reports ~412
+The call graph is the schedule. `tools/frontier.py` currently reports 232
 routines that are ready (all callees already translated), and the count grows
 as routines land, so the work does not run out.
 
@@ -83,8 +119,8 @@ instruction percentage fastest, because those routines are big.
 
 ## A note on the 30% target
 
-30% of the instruction total is roughly 8200 routines-worth of code; at the
-current 8.6% the project is ~2400 instructions in. Reaching 30% therefore means
+30% of the instruction total is roughly 9800 instructions; at the
+current 11.3% the project is ~3700 instructions in. Reaching 30% therefore means
 translating on the order of 300 more routines, and the ones that are left are
 bigger and more entangled than the ones done so far (the easy leaf
 functions and hardware pokes are largely gone). Work in batches with

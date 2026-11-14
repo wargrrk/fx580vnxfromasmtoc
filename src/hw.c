@@ -75,14 +75,20 @@ uint16_t flags_set_four(uint8_t *ds)
     return 1;
 }
 
-/* 0x09FB8 - the routine clears the interrupt enable bit of 0xF014 and
- * rewrites the timer setup.  It ends with r1 = 160 and r0 = 2. */
+/* 0x09FB8 - clear interrupt-enable bit 1 of 0xF014, then rewrite the timer
+ * pair.  Two details the earlier reading got wrong:
+ *
+ *   `and r0, 253` is `& 0xFD`, so the bit that goes is bit 1, not bit 2.
+ *   `st r0, [ea]` does *not* post-increment, so 80 at 0xF008 is overwritten by
+ *   the 160 before `[ea+]` moves the pointer on: the surviving pair is
+ *   0xF008 = 160 and 0xF009 = 2, and 0xF00A is never touched.
+ *
+ * The routine ends with r1 = 160 and r0 = 2, i.e. 0xA002. */
 uint16_t lcd_timer_poke(uint8_t *ds)
 {
-    ds[0xF014] &= (uint8_t)~0x04;
-    ds[0xF008] = 80;
-    ds[0xF009] = 160;
-    ds[0xF00A] = 2;
+    ds[0xF014] &= (uint8_t)253u;
+    ds[0xF008] = 160;
+    ds[0xF009] = 2;
     return (uint16_t)((160u << 8) | 2u);
 }
 
@@ -315,10 +321,14 @@ uint16_t value_is_three(uint8_t *ds, uint16_t value)
     return ((uint8_t)value == 3) ? 1 : 0;
 }
 
-/* 0x2F9F6 - bit 7 of the modifier byte at 0xD110. */
-uint16_t modifier_bit7(uint8_t *ds)
+/* 0x2F9F6 - bit 7 of the modifier byte at 0xD110.  The answer is built with
+ * `mov r0, ...` alone, so r1 keeps the caller's high half: with a non-zero
+ * high byte the returned word is 0xNN00 or 0xNN01, not 0 or 1. */
+uint16_t modifier_bit7(uint8_t *ds, uint16_t arg)
 {
-    return ((ds[0xD110] & 0x80u) != 0) ? 1 : 0;
+    uint16_t flag = ((ds[0xD110] & 0x80u) != 0) ? 1u : 0u;
+
+    return (uint16_t)((arg & 0xFF00u) | flag);
 }
 
 /* 0x2FA02 - the byte at 0xD156 added to the word at 0xD00C. */

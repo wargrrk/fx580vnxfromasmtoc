@@ -21,7 +21,7 @@ static void test_strlen(void)
             begin_c();
             uint16_t c = strlen_n(after_c, p);
             check_ret("strlen_n", r, c);
-            check_mem("strlen_n", RAM_BASE, CMP_END);
+            check_mem_all("strlen_n");
         }
     }
 }
@@ -41,7 +41,7 @@ static void test_byte_strlen(void)
         begin_c();
         uint8_t c = byte_strlen_n(after_c, p);
         check_ret("byte_strlen_n", (uint16_t)(r & 0xFF), c);
-        check_mem("byte_strlen_n", RAM_BASE, CMP_END);
+        check_mem_all("byte_strlen_n");
     }
 }
 
@@ -60,7 +60,7 @@ static void test_strcpy(void)
         begin_c();
         uint16_t c = strcpy_nn(after_c, dst, src);
         check_ret("strcpy_nn", r, c);
-        check_mem("strcpy_nn", RAM_BASE, CMP_END);
+        check_mem_all("strcpy_nn");
     }
 }
 
@@ -83,7 +83,7 @@ static void test_strcat(void)
             begin_c();
             uint16_t c = strcat_nn(after_c, dst, src);
             check_ret("strcat_nn", r, c);
-            check_mem("strcat_nn", RAM_BASE, CMP_END);
+            check_mem_all("strcat_nn");
         }
     }
 }
@@ -95,7 +95,7 @@ static void test_smart(void)
     uint16_t r = run_rom(0x203B8, &a0, "smart_strlen_n(NULL)");
     begin_c();
     check_ret("smart_strlen_n(NULL)", r, smart_strlen_n(after_c, 0));
-    check_mem("smart_strlen_n(NULL)", RAM_BASE, CMP_END);
+    check_mem_all("smart_strlen_n(NULL)");
 
     struct { uint16_t dst, src; const char *name; } cases[] = {
         {0x0000, 0xD700, "smart_strcpy(dst=NULL)"},
@@ -112,7 +112,7 @@ static void test_smart(void)
         begin_c();
         uint16_t c = smart_strcpy_nn(after_c, cases[i].dst, cases[i].src);
         check_ret(cases[i].name, rr, c);
-        check_mem(cases[i].name, RAM_BASE, CMP_END);
+        check_mem_all(cases[i].name);
     }
 
     for (int i = 0; i < 4; i++) {
@@ -124,7 +124,7 @@ static void test_smart(void)
         begin_c();
         uint16_t c = smart_strcat_nn(after_c, cases[i].dst, cases[i].src);
         check_ret(cases[i].name, rr, c);
-        check_mem(cases[i].name, RAM_BASE, CMP_END);
+        check_mem_all(cases[i].name);
     }
 }
 
@@ -251,7 +251,34 @@ void test_string(void)
         begin_c();
         check_ret("append_string_1de5", rom_ret,
                   append_string_1de5(after_c, p));
-        check_mem("append_string_1de5", RAM_BASE, CMP_END);
+        check_mem_all("append_string_1de5");
+    }
+
+    /* 0x0EA4A - the lead-byte boundary, with the trail byte pinned so the
+     * wide path is checked for the value it assembles, not just its width */
+    {
+        static const uint8_t leads[] = {0x00, 0x41, 0xEF, 0xF0, 0xF1, 0xFE, 0xFF};
+        for (size_t i = 0; i < sizeof(leads) / sizeof(leads[0]); i++) {
+            for (int odd = 0; odd < 2; odd++) {
+                random_image((uint32_t)(0x0EA4A + i * 2 + odd));
+                uint16_t p = (uint16_t)(0xD200 + (odd ? 1 : 0));
+                image[p] = leads[i];
+                image[p + 1] = 0x5A;
+                Args args = {.er = {p}, .nstk = 0};
+                uint16_t rom_ret = run_rom(0x0EA4A, &args, "decode_char_code");
+                begin_c();
+                check_ret("decode_char_code", rom_ret,
+                          decode_char_code(after_c, p));
+                check_mem_all("decode_char_code");
+            }
+        }
+    }
+
+    /* 0x19808 - every byte, because the DAAs make the digit carries the point */
+    for (unsigned value = 0; value < 256; value++) {
+        Args args = {.er = {(uint16_t)value}, .nstk = 0};
+        uint16_t rom_ret = run_rom(0x19808, &args, "to_packed_bcd");
+        check_ret("to_packed_bcd", rom_ret, to_packed_bcd((uint8_t)value));
     }
 
     /* 0x0ED88 - every byte, since the boundary at 0xF0 is the whole point */

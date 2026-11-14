@@ -91,7 +91,10 @@ void draw_line(uint8_t *ds, uint16_t start, uint16_t end)
 {
     uint8_t x0 = (uint8_t)start;
     uint8_t y0 = (uint8_t)(start >> 8);
-    int16_t dx = (int16_t)(int8_t)((uint8_t)end - x0);
+    /* er10 = end_low - x0 as a *16-bit* subtraction of two zero-extended
+     * bytes, so |dx| runs to 255.  A signed-byte delta here makes every line
+     * wider than 127 columns take the wrong step sign. */
+    int16_t dx = (int16_t)((uint16_t)((uint16_t)(uint8_t)end - (uint16_t)x0));
     int16_t dy = (int16_t)((int16_t)(int8_t)(uint8_t)(end >> 8) - (int16_t)(int8_t)y0);
 
     uint8_t r6 = x0;

@@ -18,8 +18,12 @@ int main(int argc, char **argv)
     test_hw();
     test_draw();
     test_record();
+    test_arith();
     test_emu();
 
     printf("%d checks, %d failures\n", checks, failures);
+    if (rom_no_return)
+        printf("%d runs where the ROM itself did not return (out-of-domain "
+               "arguments, not compared)\n", rom_no_return);
     return failures ? 1 : 0;
 }

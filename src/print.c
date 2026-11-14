@@ -38,6 +38,11 @@ void screen_blend(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask)
 
     if (addr <= DRAW_MIN_ADDR)
         return;
+    /* the chip drops the store outside RAM/SFR/LCD, so the read-modify-write
+     * has to be abandoned too - otherwise the model invents writes the ROM
+     * never makes */
+    if (!ds_writable(addr))
+        return;
     if (mask != 0)
         value &= mask;
 
@@ -81,6 +86,11 @@ void screen_pixel(uint8_t *ds, uint16_t xy, int clear, int check_bounds)
     uint16_t base = ds[CURRENT_BUF_ADDR] != 0 ? 0xDDD4u : 0xE3D4u;
     uint16_t address = (uint16_t)(base + (uint16_t)(24u * y) + (x >> 3));
     uint8_t mask = (uint8_t)(0x80u >> (x & 7));
+    /* with the bounds check off the row index runs to 255, which walks the
+     * address out of the buffers and into ROM or open bus; the chip drops
+     * those stores and so must the model */
+    if (!ds_writable(address))
+        return;
     if (clear)
         ds[address] &= (uint8_t)~mask;
     else

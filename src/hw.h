@@ -122,7 +122,7 @@ uint16_t value_is_two(uint8_t *ds, uint16_t value);
 uint16_t value_is_three(uint8_t *ds, uint16_t value);
 
 /* 0x2F9F6 - bit 7 of the modifier byte at 0xD110. */
-uint16_t modifier_bit7(uint8_t *ds);
+uint16_t modifier_bit7(uint8_t *ds, uint16_t arg);
 
 /* 0x2FA02 - byte at 0xD156 plus the word at 0xD00C. */
 uint16_t counter_sum_0D156(uint8_t *ds);

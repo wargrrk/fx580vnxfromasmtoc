@@ -11,7 +11,7 @@ static void test_buffer_clear(void)
         run_rom(0x08C60, &a, "buffer_clear");
         begin_c();
         buffer_clear(after_c);
-        check_mem("buffer_clear", RAM_BASE, CMP_END);
+        check_mem_all("buffer_clear");
         check_mem("buffer_clear", 0xF800, 0x10000);
     }
 }
@@ -25,12 +25,12 @@ static void test_buf_copy(void)
             run_rom(0x09440, &a, "buf1_to_buf2");
             begin_c();
             buf1_to_buf2(after_c);
-            check_mem("buf1_to_buf2", RAM_BASE, CMP_END);
+            check_mem_all("buf1_to_buf2");
         } else {
             run_rom(0x09458, &a, "buf2_to_buf1");
             begin_c();
             buf2_to_buf1(after_c);
-            check_mem("buf2_to_buf1", RAM_BASE, CMP_END);
+            check_mem_all("buf2_to_buf1");
         }
     }
 }
@@ -47,7 +47,7 @@ static void test_fill_screen(void)
         run_rom(0x08C0C, &a, "fill_screen");
         begin_c();
         fill_screen(after_c, args[t]);
-        check_mem("fill_screen", RAM_BASE, CMP_END);
+        check_mem_all("fill_screen");
         check_mem("fill_screen", 0xF800, 0x10000);
     }
 }
@@ -64,7 +64,7 @@ static void test_render(void)
             run_rom(0x09470, &a, "render_e3d4");
             begin_c();
             render_e3d4(after_c);
-            check_mem("render_e3d4", RAM_BASE, CMP_END);
+            check_mem_all("render_e3d4");
             check_mem("render_e3d4", 0xF800, 0x10000);
         } else {
             image[0xD0F5] = (t & 1) ? 0 : 1;
@@ -72,7 +72,7 @@ static void test_render(void)
             run_rom(0x0947C, &a, "render_ddd4");
             begin_c();
             render_ddd4(after_c);
-            check_mem("render_ddd4", RAM_BASE, CMP_END);
+            check_mem_all("render_ddd4");
             check_mem("render_ddd4", 0xF800, 0x10000);
         }
     }
