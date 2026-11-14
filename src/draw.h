@@ -44,6 +44,13 @@ void draw_line(uint8_t *ds, uint16_t start, uint16_t end);
  * `spec & 0xFF`.  Plots through 0x091E2 (bounds-checked). */
 void box_frame(uint8_t *ds, uint16_t xy, uint16_t spec);
 
+/* 0x08CB8 - the one-pixel frame, same `spec` layout as box_frame. */
+void box_frame_thin(uint8_t *ds, uint16_t xy, uint16_t spec);
+
+/* 0x08C7A - shift the rows of buffer 1 up by one, dropping the row at
+ * `index`, and zero the tail the move leaves behind. */
+uint16_t screen_scroll_rows_up(uint8_t *ds, uint16_t index, uint16_t high);
+
 /* 0x08DC0 - a 2-pixel-thick rounded box: the loop runs from `y + 2` to
  * `(spec & 0xFF) - 2`, clamping the sides on the row that matches
  * `spec >> 8`, and the two closing rows are drawn after it. */

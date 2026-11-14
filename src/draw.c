@@ -282,3 +282,51 @@ void box_round_rect(uint8_t *ds, uint16_t xy, uint16_t spec)
     screen_pixel(ds, pix((uint8_t)(x + 2), (uint8_t)(y + 1)), 0, 0);
     screen_pixel(ds, pix((uint8_t)(x + 3), (uint8_t)(y + 1)), 0, 0);
 }
+
+/* 0x08CB8 - the one-pixel frame: a single vertical stroke from the start row
+ * to `spec & 0xFF` with optional half-pixel caps on the top row (bit 7 right,
+ * bit 5 left) and the bottom row (bit 6 right, bit 4 left).  Like box_frame it
+ * plots through 0x091E2, the unchecked pixel store, and the bottom caps use
+ * the row the loop finished on. */
+void box_frame_thin(uint8_t *ds, uint16_t xy, uint16_t spec)
+{
+    uint8_t x = (uint8_t)xy;
+    uint8_t y = (uint8_t)(xy >> 8);
+    uint8_t end_y = (uint8_t)spec;
+    uint8_t flags = (uint8_t)(spec >> 8);
+
+    if (flags & 0x80)
+        screen_pixel(ds, pix((uint8_t)(x + 1), y), 0, 0);
+    if (flags & 0x20)
+        screen_pixel(ds, pix((uint8_t)(x - 1), y), 0, 0);
+
+    for (;;) {
+        screen_pixel(ds, pix(x, y), 0, 0);
+        if (y == end_y)
+            break;
+        y = (uint8_t)(y + 1);
+    }
+
+    if (flags & 0x40)
+        screen_pixel(ds, pix((uint8_t)(x + 1), y), 0, 0);
+    if (flags & 0x10)
+        screen_pixel(ds, pix((uint8_t)(x - 1), y), 0, 0);
+}
+
+/* 0x08C7A - drop one 24-byte row out of buffer 1: the rows below `index` move
+ * up one slot (row 0 is left alone, so the shift starts at 0xDDEC) and the
+ * tail the move leaves behind is zeroed.  `high` only survives as the high
+ * byte of the `mul er2, r0` operand, because the listing loads the row size
+ * with `mov r2, 24` and leaves r3 alone - the row count is therefore
+ * `(24 | (high & 0xFF00)) * (index + 1)`, computed in 16 bits like the ROM. */
+uint16_t screen_scroll_rows_up(uint8_t *ds, uint16_t index, uint16_t high)
+{
+    uint16_t rows = (uint16_t)((24u | (high & 0xFF00u)) *
+                               (uint16_t)(uint8_t)((uint8_t)index + 1u));
+    uint16_t count = (uint16_t)(0x0600u - rows);
+
+    memmove_nn(ds, 0xDDECu, (uint16_t)(0xDDD4u + rows), count);
+
+    return memzero(ds, (uint16_t)(0xE3D4u - rows + 24u),
+                   (uint16_t)(rows - 24u));
+}
