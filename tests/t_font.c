@@ -1,7 +1,11 @@
 /* t_font.c - differential tests for glyph extraction. */
+#include "batch.h"
 #include "harness.h"
 
 #include "../src/font.h"
+
+W0(font_row_step_5_7)
+W0(font_row_step_10_14)
 
 static void test_char_get_14(void)
 {
@@ -47,6 +51,10 @@ static void test_char_get_l14(void)
 
 void test_font(void)
 {
+    BATCH(
+        {"font_row_step_5_7", 0x0BF12, "", a_font_row_step_5_7, 0},
+        {"font_row_step_10_14", 0x0FBEC, "", a_font_row_step_10_14, 0},
+    );
     test_char_get_14();
     test_char_get_l14();
 }

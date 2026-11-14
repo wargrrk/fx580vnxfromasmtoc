@@ -331,3 +331,12 @@ uint16_t screen_scroll_rows_up(uint8_t *ds, uint16_t index, uint16_t high)
     return memzero(ds, (uint16_t)(0xE3D4u - rows + 24u),
                    (uint16_t)(rows - 24u));
 }
+
+/* 0x08BFC - clear `24 * value` bytes of buffer 1 starting at row 1.  The `mul`
+ * is 8x8, so only the low byte of the argument picks the count.  A count over
+ * 150 rows runs past 0xEC00 and the copy eats its own stack, which is where the
+ * ROM stops having a behaviour to match, so the test keeps within that. */
+uint16_t row_buffer_clear_24(uint8_t *ds, uint16_t value)
+{
+    return memzero(ds, 0xDDECu, (uint16_t)(24u * (uint16_t)(uint8_t)value));
+}

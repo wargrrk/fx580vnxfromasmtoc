@@ -26,4 +26,8 @@ void char_get_l14_buf(uint8_t *ds, uint8_t c, uint8_t marker, uint8_t *out);
  * font_size byte at 0xD137).  Each row is one byte, 5 bits per glyph. */
 uint16_t char_get_l14(uint8_t *ds, uint8_t c, uint8_t marker, uint16_t out);
 
+/* 0x0BF12 / 0x0FBEC - row step for the current font size at 0xD137. */
+uint16_t font_row_step_5_7(uint8_t *ds);
+uint16_t font_row_step_10_14(uint8_t *ds);
+
 #endif

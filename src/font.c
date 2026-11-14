@@ -131,3 +131,21 @@ uint16_t char_get_l14(uint8_t *ds, uint8_t c, uint8_t marker, uint16_t out)
         ds[out + i] = tmp[i];
     return out;
 }
+
+/* 0x0BF12 - the row step for the current font: 5 when 0xD137 is 10, else 7.
+ * The ROM builds the answer in r1 and copies it with `mov r0, r1`, so the byte
+ * lands in both halves of er0 (0x0707, not 0x0007). */
+uint16_t font_row_step_5_7(uint8_t *ds)
+{
+    uint8_t step = (ds[0xD137] == 10) ? 5 : 7;
+
+    return (uint16_t)((step << 8) | step);
+}
+
+/* 0x0FBEC - the same test with the pair 10/14. */
+uint16_t font_row_step_10_14(uint8_t *ds)
+{
+    uint8_t step = (ds[0xD137] == 10) ? 10 : 14;
+
+    return (uint16_t)((step << 8) | step);
+}

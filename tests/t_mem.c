@@ -9,6 +9,7 @@
 W2(max_u16)
 W1(clear_160_bytes)
 W1(clear_200_bytes)
+W0(clear_block_d6b2)
 
 static void test_memcpy(void)
 {
@@ -318,6 +319,7 @@ static void test_small_leaves(void)
         {"max_u16", 0x2ABDA, "ww", a_max_u16, 0},
         {"clear_160_bytes", 0x143CA, "p", a_clear_160_bytes, 0},
         {"clear_200_bytes", 0x14C18, "p", a_clear_200_bytes, 0},
+        {"clear_block_d6b2", 0x15BF8, "", a_clear_block_d6b2, 0},
     );
 }
 

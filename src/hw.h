@@ -130,4 +130,10 @@ uint16_t counter_sum_0D156(uint8_t *ds);
 /* 0x18940 - argument * 10, based at 0xDA40. */
 uint16_t record_10b_0DA40(uint8_t *ds, uint16_t value);
 
+/* 0x09D42 - zero the five state bytes at 0xD116..0xD119 and 0xD148. */
+uint16_t state_reset_0D116(uint8_t *ds);
+
+/* 0x1826E - the ten-byte record byte for this index. */
+uint16_t table_byte_10b(uint8_t *ds, uint16_t value);
+
 #endif

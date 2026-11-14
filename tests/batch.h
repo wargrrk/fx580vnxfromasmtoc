@@ -14,6 +14,8 @@
  *     w   word                0x0000..0xFFFF
  *     p   RAM pointer         0xD000..0xEBFE (kept clear of the stack)
  *     s   small count         0x00..0x20
+ *     m   medium count        0x00..0x96 (row counts that stay inside a 0x600
+ *                             byte buffer instead of running into the stack)
  *     z   zero
  *
  * A `!` anywhere in the shape means "do not compare the return value" - used

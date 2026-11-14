@@ -59,6 +59,7 @@ uint16_t clear_block_d16c(uint8_t *ds);
 uint16_t max_u16(uint8_t *ds, uint16_t a, uint16_t b);
 uint16_t clear_160_bytes(uint8_t *ds, uint16_t dst);
 uint16_t clear_200_bytes(uint8_t *ds, uint16_t dst);
+uint16_t clear_block_d6b2(uint8_t *ds);
 void shift_range_offsets(uint8_t *ds, uint16_t delta, uint8_t lower,
 						 uint8_t start);
 uint16_t record_template_06(uint8_t *ds, uint16_t dst);

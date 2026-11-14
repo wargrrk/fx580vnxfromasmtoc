@@ -409,3 +409,9 @@ uint16_t clear_200_bytes(uint8_t *ds, uint16_t dst)
 {
     return memzero(ds, dst, 200);
 }
+
+/* 0x15BF8 - clear the fixed 320-byte block at 0xD6B2. */
+uint16_t clear_block_d6b2(uint8_t *ds)
+{
+    return memzero(ds, 0xD6B2u, 320);
+}

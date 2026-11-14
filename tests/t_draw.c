@@ -10,6 +10,7 @@ W1(cell_origin)
 W2(cell_record_addr)
 W1(screen_rows_clear_from)
 W2(screen_scroll_rows_up)
+W1(row_buffer_clear_24)
 
 static uint16_t a_box_frame_thin(uint8_t *ds, const uint16_t *e,
                                  const uint16_t *s)
@@ -52,6 +53,7 @@ void test_draw(void)
         {"screen_rows_clear_from", 0x08BDE, "s", a_screen_rows_clear_from, 0},
         {"box_frame_thin", 0x08CB8, "ww!", a_box_frame_thin, 0},
         {"screen_scroll_rows_up", 0x08C7A, "sw!", a_screen_scroll_rows_up, 0},
+        {"row_buffer_clear_24", 0x08BFC, "m", a_row_buffer_clear_24, 0},
         {"box_frame", 0x08D00, "ww!", a_box_frame, 0},
         {"box_round_rect", 0x08DC0, "ww!", a_box_round_rect, 0},
         {"draw_line", 0x08E62, "ww!", a_draw_line, 0},

@@ -337,3 +337,24 @@ uint16_t record_10b_0DA40(uint8_t *ds, uint16_t value)
     (void)ds;
     return (uint16_t)((uint16_t)((uint8_t)value * 10u) + 0xDA40u);
 }
+
+/* 0x09D42 - zero 0xD116, 0xD117, 0xD118, 0xD119 and 0xD148; er0 comes back 0. */
+uint16_t state_reset_0D116(uint8_t *ds)
+{
+    ds[0xD116] = 0;
+    ds[0xD117] = 0;
+    ds[0xD119] = 0;
+    ds[0xD118] = 0;
+    ds[0xD148] = 0;
+    return 0;
+}
+
+/* 0x1826E - the byte of the ten-byte record at 0xDA40 for this index. */
+uint16_t table_byte_10b(uint8_t *ds, uint16_t value)
+{
+    uint16_t addr = record_10b_0DA40(ds, value);
+
+    /* `l r0, [er0]` loads a byte and leaves r1 alone, so the high half of the
+     * record address survives into the result (0xDE11, not 0x0011). */
+    return (uint16_t)((addr & 0xFF00u) | ds[addr]);
+}

@@ -51,6 +51,9 @@ void box_frame_thin(uint8_t *ds, uint16_t xy, uint16_t spec);
  * `index`, and zero the tail the move leaves behind. */
 uint16_t screen_scroll_rows_up(uint8_t *ds, uint16_t index, uint16_t high);
 
+/* 0x08BFC - clear 24 * value bytes of buffer 1 from 0xDDEC. */
+uint16_t row_buffer_clear_24(uint8_t *ds, uint16_t value);
+
 /* 0x08DC0 - a 2-pixel-thick rounded box: the loop runs from `y + 2` to
  * `(spec & 0xFF) - 2`, clamping the sides on the row that matches
  * `spec >> 8`, and the two closing rows are drawn after it. */

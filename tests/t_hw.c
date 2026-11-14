@@ -37,6 +37,8 @@ W1(value_is_three)
 W0(modifier_bit7)
 W0(counter_sum_0D156)
 W1(record_10b_0DA40)
+W0(state_reset_0D116)
+W1(table_byte_10b)
 
 void test_hw(void)
 {
@@ -75,5 +77,7 @@ void test_hw(void)
         {"modifier_bit7", 0x2F9F6, "", a_modifier_bit7, 0},
         {"counter_sum_0D156", 0x2FA02, "", a_counter_sum_0D156, 0},
         {"record_10b_0DA40", 0x18940, "w", a_record_10b_0DA40, 0},
+        {"state_reset_0D116", 0x09D42, "", a_state_reset_0D116, 0},
+        {"table_byte_10b", 0x1826E, "w", a_table_byte_10b, 0},
     );
 }

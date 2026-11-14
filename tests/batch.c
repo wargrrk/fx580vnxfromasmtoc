@@ -21,6 +21,8 @@ static uint16_t arg_for(char kind, uint32_t *extra)
         return (uint16_t)(0xD000u + (rnd() % 0x1BF0u));
     case 's':
         return (uint16_t)(rnd() % 0x21u);
+    case 'm':
+        return (uint16_t)(rnd() % 0x97u);
     case 'z':
         return 0;
     default:
