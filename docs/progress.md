@@ -32,12 +32,16 @@ on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 159 / 763 (20.8%) |
-| instructions | 3907 / 32751 (11.9%) |
+| routines | 158 / 763 (20.7%) |
+| instructions | 3881 / 32751 (11.9%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
-in the ROM.)
+in the ROM.  `python3 tools/audit.py` is what keeps the first number honest: it
+fails unless every annotated routine is also run against the ROM by a test, and
+it counts an annotation only when the addresses open the comment block - a
+prose mention inside a neighbouring block used to claim `0x0A568`, whose body
+was never written, and inflated the count by one routine and 26 instructions.)
 
 ## Instruction-set traps
 

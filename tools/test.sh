@@ -18,6 +18,9 @@ $CC $CFLAGS -o build/diff_all \
     emu/nx8.c
 ./build/diff_all resource/rom.bin
 
+echo "== coverage audit =="
+python3 tools/audit.py || exit 1
+
 $CC $CFLAGS -o build/xcheck tests/xcheck.c emu/nx8.c
 ./build/xcheck resource/rom.bin > build/xcheck_mine.txt
 

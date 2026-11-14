@@ -27,10 +27,11 @@ void screen_blend_immediate(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t m
  * bounds-checked pixel and 0x091EA sets a bounds-checked one. */
 void screen_pixel(uint8_t *ds, uint16_t xy, int clear, int check_bounds);
 
-/* 0x094C8: address of the byte containing pixel (x, y) in the current packed
- * buffer, plus the bit position (x & 7) as the return value.  The y coordinate
- * is treated as signed, so values >= 0x80 address rows above the buffer.
- * 0x094BE is the same computation for the 32-byte-per-row LCD framebuffer. */
+/* 0x094C8 / 0x094BE: address of the byte containing pixel (x, y) in the current
+ * packed buffer, plus the bit position (x & 7) as the return value.  The y
+ * coordinate is treated as signed, so values >= 0x80 address rows above the
+ * buffer.  0x094BE is the same computation for the 32-byte-per-row LCD
+ * framebuffer. */
 uint16_t screen_addr(uint8_t *ds, uint16_t xy, uint16_t *out);
 uint16_t lcd_addr(uint8_t *ds, uint16_t xy, uint16_t *out);
 

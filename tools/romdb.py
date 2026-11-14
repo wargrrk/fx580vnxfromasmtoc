@@ -223,6 +223,42 @@ def _next_code_line(lines, index):
     return ""
 
 
+# The convention is that a body's annotation *opens* with the addresses it
+# covers - `/* 0x091E2 / 0x091E6 / 0x091EA - set or clear one pixel ...`.  Only
+# that leading run counts.  Scanning the whole block let a prose mention
+# ("the scanner at 0x0A568 rejects ...") inside a neighbouring block claim a
+# routine nobody had translated.
+ADDR_ONLY_RE = re.compile(
+    r"^\s*(?:/\*+|\*+)?\s*((?:0x[0-9A-Fa-f]+[\s/,]*)+)")
+
+
+def _leading_addrs(block):
+    """Addresses named on the opening line of a comment block.
+
+    The convention is that an annotation opens by naming the entry it
+    implements - `/* 0x091E2 / 0x091E6 / 0x091EA - set or clear one pixel` or
+    `/* 0x2EB00 and 0x27E86 - a constant chosen by` - and only that opening run
+    counts.  Scanning the whole block let a prose mention ("the scanner at
+    0x0A568 rejects a byte ...") inside a neighbouring block claim a routine
+    nobody had translated.
+    """
+    for line in block:
+        stripped = line.strip()
+        if stripped in ("/*", "*", ""):
+            continue
+        match = ADDR_ONLY_RE.match(line)
+        if match is None:
+            return []
+        addresses = [int(tok, 16) for tok in ADDR_RE.findall(match.group(1))]
+        # A continuation line that holds nothing but more addresses belongs to
+        # the same list.
+        rest = line[match.end():].strip().lstrip("*/").strip()
+        if addresses and (rest == "" or rest.startswith("-")):
+            return addresses
+        return addresses
+    return []
+
+
 def implemented_addrs(db, root=ROOT):
     """Addresses with a C declaration directly under an address comment."""
     entries = routine_entries(db)
@@ -233,11 +269,9 @@ def implemented_addrs(db, root=ROOT):
         for block, code in _comment_blocks(path):
             if not code or not DECL_RE.match(code):
                 continue
-            for line in block:
-                for token in ADDR_RE.findall(line):
-                    addr = int(token, 16)
-                    if addr in entries:
-                        seen.add(addr)
+            for addr in _leading_addrs(block):
+                if addr in entries:
+                    seen.add(addr)
     return seen
 
 

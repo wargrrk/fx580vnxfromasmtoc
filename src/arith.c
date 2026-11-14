@@ -86,10 +86,10 @@ void draw_bar_frames(uint8_t *ds, uint8_t index)
         box_frame_thin(ds, 0x0191, spec);
 }
 
-/* 0x2EB00 and 0x27E86 - a constant chosen by "is the leading byte 10?", written
- * as the `r1 = 11 (or 6); r0 = r1` pair the ROM uses.  Because only r0 is
+/* 0x2EB00 - a constant chosen by "is the byte it reads 10?", written as the
+ * `r1 = 11 (or 6); r0 = r1` pair the ROM uses.  Because only r0 is
  * overwritten at the end, both halves of the result carry the constant:
- * 0x0B0B / 0x0606.  The two routines differ only in which byte they read. */
+ * 0x0B0B / 0x0606.  See 0x27E86 for the same computation on another byte. */
 uint16_t pitch_from_state(uint8_t *ds, uint16_t arg)
 {
     (void)arg;
@@ -98,6 +98,7 @@ uint16_t pitch_from_state(uint8_t *ds, uint16_t arg)
     return (uint16_t)(((uint16_t)value << 8) | value);
 }
 
+/* 0x27E86 - the 0x2EB00 computation with 0x0707 / 0x0505 as its constants. */
 uint16_t tall_metric_from_font(uint8_t *ds, uint16_t arg)
 {
     (void)arg;

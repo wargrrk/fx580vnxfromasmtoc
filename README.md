@@ -51,10 +51,19 @@ Three things keep the comparison honest:
 actually made - and fails unless the suite catches each of them, so "0 failures"
 cannot quietly come from weak checks.
 
+`tools/audit.py` closes the other hole: a routine counts as translated because
+its address is annotated in `src/`, which says nothing about whether anything
+tests it.  The audit cross-checks the annotation set against the tests and
+fails when an annotated routine is neither diff-tested directly nor reached
+from a routine that is.  It also enforces the annotation convention it relies
+on: only addresses on the opening line of a comment block count, so a prose
+mention ("the scanner at 0x0A568 rejects ...") cannot inflate the percentage.
+
 ```sh
-bash tools/test.sh          # differential tests + cross-check
+bash tools/test.sh          # audit, differential tests, cross-check
 bash tools/test.sh --quick  # differential tests only
 ./tools/mutation.sh         # prove the suite still catches planted bugs
+python3 tools/audit.py -v   # which routines are tested directly
 ```
 
 ### Adding a routine
@@ -78,6 +87,6 @@ must stay at `0 failures`.
 ### Progress
 
 `python3 tools/coverage.py` reports how much of the firmware has a verified C
-body (currently 20.8% of routines, 11.9% of instructions). See
+body (currently 20.7% of routines, 11.9% of instructions). See
 [`docs/progress.md`](docs/progress.md) for the details and the plan for the
 remaining work.
