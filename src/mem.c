@@ -716,6 +716,17 @@ uint16_t mode_is_69_1(uint8_t *ds, uint16_t arg)
     return (uint16_t)((arg & 0xFF00u) | flag);
 }
 
+/* 0x153C4 - the same ten-byte copy, with the destination computed as er10 plus
+ * forty and the source left in er2.  It branches straight into the shared copy
+ * tail at 0x13ADA, so er0 comes back holding the destination. */
+uint16_t record10_from_er10_plus40(uint8_t *ds, uint16_t src, uint16_t base10)
+{
+    uint16_t dst = (uint16_t)(base10 + 40);
+
+    (void)record10_move(ds, dst, src);
+    return dst;
+}
+
 /* 0x13ACC - copy ten bytes from er4 to er8, both rounded down to even.  The
  * pair of `mov`s feeds the shared copy tail at 0x1DCE4, and er0 is never
  * written, so the destination address is what comes back. */

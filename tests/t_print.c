@@ -550,8 +550,46 @@ static void test_decompress_print(void)
     }
 }
 
+/* 0x099E4 - the whole argument is `0x0400`, so one run per seeded buffer is
+ * enough to see the fill land. */
+static void test_font14_clear_screen(void)
+{
+    for (uint32_t seed = 0; seed < 3; seed++) {
+        random_image(0xF4000u + seed);
+        Args args = {.nstk = 0};
+        uint16_t rom_ret = run_rom(0x099E4, &args, "font14_clear_screen");
+        begin_c();
+        check_ret("font14_clear_screen", rom_ret, font14_clear_screen(after_c));
+        check_mem_all("font14_clear_screen");
+    }
+}
+
+/* 0x0BF22 - the boundary is 240, so test both sides of it and both ends of the
+ * address space. */
+static void test_advance_char_pointer(void)
+{
+    static const uint8_t bytes[] = {0, 1, 0x41, 0xEF, 0xF0, 0xF1, 0xFE, 0xFF};
+    static const uint16_t ptrs[] = {0xD000, 0xD001, 0xEBF0, 0xDFFF};
+
+    for (size_t b = 0; b < sizeof(bytes) / sizeof(bytes[0]); b++) {
+        for (size_t a = 0; a < sizeof(ptrs) / sizeof(ptrs[0]); a++) {
+            random_image(0xF5000u + (unsigned)(b * 10 + a));
+            image[ptrs[a]] = bytes[b];
+            Args args = {.er = {ptrs[a], 0}, .nstk = 0};
+            uint16_t rom_ret = run_rom(0x0BF22, &args, "advance_char_pointer");
+            begin_c();
+            check_ret("advance_char_pointer", rom_ret,
+                      advance_char_pointer(after_c, ptrs[a]));
+            check_mem_all("advance_char_pointer");
+        }
+    }
+}
+
 void test_print(void)
 {
+    test_font14_clear_screen();
+    test_advance_char_pointer();
+
     test_screen_blend();
     test_screen_blit_masked();
     test_fill_rect();

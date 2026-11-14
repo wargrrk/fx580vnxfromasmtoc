@@ -435,6 +435,48 @@ uint16_t clear_call_registers(uint8_t *ds)
     return 0;
 }
 
+/* 0x0AF1A - the "nothing chosen yet" test: er0 is either 35 or zero.  The first
+ * three instructions are a plain sixteen-bit compare with 35 (`cmp r0, 35 /
+ * cmpc r1, 0`, chained Z), and the failing branch lands on `mov er0, er0`,
+ * which is the ROM's way of testing the whole pair against zero before jumping
+ * back to the same `mov r0, 1`.  So the zero case answers 1 as well, and a
+ * sixteen-bit sweep of the entry shows exactly two values that do.  Only r0 is
+ * written on the way out, so the high half is the caller's r1. */
+uint16_t is_zero_or_35(uint8_t *ds, uint16_t arg)
+{
+    (void)ds;
+    return (uint16_t)((arg & 0xFF00u) | (uint16_t)(arg == 0 || arg == 35));
+}
+
+/* 0x0C34E - submode 19 or 20, the two that keep the cursor visible. */
+uint16_t submode_is_19_or_20(uint8_t *ds, uint16_t arg)
+{
+    uint8_t s = ds[0xD114];
+
+    return (uint16_t)((arg & 0xFF00u) | (uint16_t)(s == 19 || s == 20));
+}
+
+/* 0x2AF28 - the three-way state byte at 0xD015, true for 1 and for 3. */
+uint16_t state_is_1_or_3(uint8_t *ds, uint16_t arg)
+{
+    uint8_t s = ds[0xD015];
+
+    return (uint16_t)((arg & 0xFF00u) | (uint16_t)(s == 1 || s == 3));
+}
+
+/* 0x2D4D8 - bit 4 of 0xD114 set *and* the sub-state byte at 0xD116 equal to 1.
+ * `tb` tests a bit without disturbing anything else, and a clear bit short
+ * circuits before the second test. */
+uint16_t flag4_and_substate_1(uint8_t *ds, uint16_t arg)
+{
+    uint8_t flag = 0;
+
+    if (ds[0xD114] & 0x10)
+        flag = (uint8_t)(ds[0xD116] == 1);
+
+    return (uint16_t)((arg & 0xFF00u) | flag);
+}
+
 /* 0x0A146 - display enable: the byte at 0xF815 becomes 1 when the argument is
  * non-zero and 0 when it is, and er0 answers with the flag in its low half.  It
  * is the label inside 0x0A128's body (`.l_01E`), reached by `bl` from the

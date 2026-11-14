@@ -3,6 +3,7 @@
 #include "harness.h"
 
 #include "../src/hw.h"
+#include "../src/runtime.h"
 
 W0(set_flag_0F810)
 W0(set_flag_0F812)
@@ -70,8 +71,60 @@ static void test_pop_pc_return(void)
     }
 }
 
+/* 0x0AF1A, 0x0C34E, 0x2AF28 and 0x2D4D8 are byte predicates that answer in r0
+ * and leave r1 alone, so each one is run over the interesting values of its
+ * state byte and a high half that has to survive. */
+struct pred_case {
+    uint32_t addr;
+    const char *name;
+    uint16_t (*fn)(uint8_t *, uint16_t);
+    uint16_t cell;
+};
+
+static void one_predicate(const struct pred_case *c, uint8_t value,
+                          uint16_t arg, uint8_t other)
+{
+    static const uint16_t other_cells[] = {0xD114, 0xD116};
+
+    random_image(0xF6000u + (unsigned)value * 16u + (unsigned)other);
+    /* the cell under test gets the sweept value, the other two bytes (0xD114
+     * and 0xD116) get a value that is deliberately not always equal to it */
+    image[c->cell] = value;
+    image[other_cells[0]] = other;
+    image[other_cells[1]] = other;
+    Args args = {.er = {arg, 0}, .nstk = 0};
+    uint16_t rom_ret = run_rom(c->addr, &args, c->name);
+    begin_c();
+    check_ret(c->name, rom_ret, c->fn(after_c, arg));
+    check_mem_all(c->name);
+}
+
+static void test_state_predicates(void)
+{
+    static const uint16_t args[] = {0, 0x0023, 0x2300, 0xFFFF};
+    static const uint8_t others[] = {0, 1, 2};
+    static const struct pred_case cases[] = {
+        {0x0AF1A, "is_zero_or_35", is_zero_or_35, 0xD015},
+        {0x0C34E, "submode_is_19_or_20", submode_is_19_or_20, 0xD114},
+        {0x2AF28, "state_is_1_or_3", state_is_1_or_3, 0xD015},
+        {0x2D4D8, "flag4_and_substate_1", flag4_and_substate_1, 0xD114},
+    };
+    static const uint8_t values[] = {0, 1, 2, 3, 19, 20, 21, 0x10, 0x11, 0xFF};
+
+    for (size_t k = 0; k < sizeof(cases) / sizeof(cases[0]); k++) {
+        for (size_t v = 0; v < sizeof(values) / sizeof(values[0]); v++) {
+            for (size_t a = 0; a < sizeof(args) / sizeof(args[0]); a++) {
+                for (size_t o = 0; o < sizeof(others); o++)
+                    one_predicate(&cases[k], values[v], args[a], others[o]);
+            }
+        }
+    }
+}
+
 void test_hw(void)
 {
+    test_state_predicates();
+
     BATCH(
         {"set_flag_0F810", 0x099FC, "", a_set_flag_0F810, 0},
         {"set_flag_0F812", 0x09A04, "", a_set_flag_0F812, 0},

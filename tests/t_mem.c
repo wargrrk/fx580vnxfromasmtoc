@@ -737,6 +737,26 @@ static void test_digit_or_next_byte(void)
     }
 }
 
+/* 0x153C4 copies ten bytes to er10 + 40. */
+static void test_record10_from_er10_plus40(void)
+{
+    static const uint16_t addrs[] = {0, 0xD000, 0xD001, 0xD010, 0xDFF0};
+    static const uint16_t bases[] = {0xD000, 0xD010, 0xDFD0};
+
+    for (size_t a = 0; a < sizeof(addrs) / sizeof(addrs[0]); a++) {
+        for (size_t b = 0; b < sizeof(bases) / sizeof(bases[0]); b++) {
+            random_image(0xF7000u + (unsigned)(a * 10 + b));
+            Args args = {.er = {0, addrs[a], 0, 0, 0, bases[b]}, .nstk = 0};
+            uint16_t rom_ret = run_rom(0x153C4, &args,
+                                       "record10_from_er10_plus40");
+            begin_c();
+            check_ret("record10_from_er10_plus40", rom_ret,
+                      record10_from_er10_plus40(after_c, addrs[a], bases[b]));
+            check_mem_all("record10_from_er10_plus40");
+        }
+    }
+}
+
 /* 0x14BDC is the stride-5 index with the registers saved around it. */
 static void test_record10_index_5x_saved(void)
 {
@@ -871,6 +891,7 @@ void test_mem(void)
     test_record10_index_5x_saved();
     test_fixed_size_memcpy();
     test_mode_predicates();
+    test_record10_from_er10_plus40();
     test_base_plus_10x_index();
     test_word_at_2x_index();
     test_nibble_pair_shifted();

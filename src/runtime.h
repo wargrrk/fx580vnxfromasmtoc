@@ -165,6 +165,7 @@ uint16_t memcpy_200(uint8_t *ds, uint16_t dst, uint16_t src);
 uint16_t memcpy_50(uint8_t *ds, uint16_t dst, uint16_t src);
 uint16_t mode_is_75_1(uint8_t *ds, uint16_t arg);
 uint16_t mode_is_69_1(uint8_t *ds, uint16_t arg);
+uint16_t record10_from_er10_plus40(uint8_t *ds, uint16_t src, uint16_t base10);
 
 /* mem.c - small leaf accessors of the mode/variable cluster */
 void store_0D10E(uint8_t *ds, uint16_t v);
@@ -184,6 +185,12 @@ uint16_t shift_qr0_right4(uint8_t *ds, uint8_t *r);
 uint16_t shift_r1_r9_right4(uint8_t *ds, uint8_t *r);
 uint16_t shift_qr0_left4(uint8_t *ds, uint8_t *r);
 uint16_t shift_r1_r9_left4(uint8_t *ds, uint8_t *r);
+uint16_t is_zero_or_35(uint8_t *ds, uint16_t arg);
+uint16_t submode_is_19_or_20(uint8_t *ds, uint16_t arg);
+uint16_t state_is_1_or_3(uint8_t *ds, uint16_t arg);
+uint16_t flag4_and_substate_1(uint8_t *ds, uint16_t arg);
+uint16_t advance_char_pointer(uint8_t *ds, uint16_t ptr);
+uint16_t font14_clear_screen(uint8_t *ds);
 void draw_bar_frames(uint8_t *ds, uint8_t index);
 uint16_t pitch_from_state(uint8_t *ds, uint16_t arg);
 uint16_t key_repeat_gate(uint8_t *ds, uint16_t arg, const uint16_t *stk);

@@ -9,6 +9,7 @@
 #include "print.h"
 
 #include "../src/runtime.h"
+#include "display.h"
 #include "font.h"
 
 #define FONT_SIZE_ADDR   0xD137
@@ -334,6 +335,29 @@ uint8_t line_print(uint8_t *ds, uint16_t xy, uint16_t str, uint16_t *str_out)
     if (str_out)
         *str_out = str;
     return count;
+}
+
+/* 0x099E4 - the start-up screen: fourteen-pixel font, buffer 0, and the fill
+ * that clears it.  `mov r0, 0 / mov r1, 4` is a single sixteen-bit argument of
+ * 0x0400 - the fill takes er0. */
+uint16_t font14_clear_screen(uint8_t *ds)
+{
+    ds[0xD137] = 14;                                    /* font_size */
+    ds[0xD139] = 0;                                     /* current_screen_buffer */
+    fill_screen(ds, 0x0400);
+
+    return 0;
+}
+
+/* 0x0BF22 - the character pointer of a printed string advanced by the width of
+ * one byte: two bytes when the lead byte is 0xF0 or above (a double-byte
+ * token), one otherwise.  `bc lt` after `cmp r0, 240` is unsigned, so 0xF0
+ * itself already takes the wide branch. */
+uint16_t advance_char_pointer(uint8_t *ds, uint16_t ptr)
+{
+    uint16_t next = (uint16_t)(ptr + (ds[ptr] >= 240 ? 2 : 1));
+
+    return next;
 }
 
 /* 0x08F7C - line_print entered one instruction earlier, with `mov r0, 0` in
