@@ -17,6 +17,7 @@
 
 #include "draw.h"
 #include "hw.h"
+#include "keyboard.h"
 
 #define RAM_START 0xD000u
 
@@ -148,4 +149,67 @@ void draw_submode_box(uint8_t *ds)
                                ((uint16_t)ds[(uint16_t)(0x01AB7u + off)] << 8));
 
     box_round_rect(ds, xy, spec);
+}
+
+/* 0x28414 - the gate that lets one of the four repeat-key codes end a scan.
+ *
+ * er0 arrives as two independent bytes (lo = r8, hi = r9) and the key code is
+ * a *stacked* word at 16[er14], compared against 0xFC1C..0xFC1F.  Every path
+ * ends in `b LEAVE`, so what comes back is not a flag but whatever er0 held at
+ * that exit: the code itself when a test rejected the press, or the r0/r1 pair
+ * the call to 0x09FF6 left behind.
+ *
+ * 0x09FF6 only does `mov r0, 0` and never touches r1, so the high half of the
+ * result is the caller's r1 - 0xFC on every path that never writes it, and 0
+ * on the 0xFC1D path, which clears it with `mov r1, 0`.
+ *
+ * 0xFC1D is the interesting one: `div er4, r0` leaves the remainder in r0 and
+ * the quotient in er4, and the code subtracts the remainder, i.e. rounds the
+ * limit byte at 0x3EA0 (11) *down* to a multiple of r8.  A zero divisor leaves
+ * er4 and the flags alone (C stays clear, so the following `subc r3, r1` does
+ * not borrow) and the limit passes through unchanged - traced, not guessed.
+ * `bc gts` after that is the only *signed* test here; the `bc ge` of 0xFC1C is
+ * unsigned.
+ */
+uint16_t key_repeat_gate(uint8_t *ds, uint16_t arg, const uint16_t *stk)
+{
+    uint8_t lo = (uint8_t)arg;
+    uint8_t hi = (uint8_t)(arg >> 8);
+    uint16_t code = stk[0];
+    uint8_t limit = ds[0x3EA0];
+
+    switch (code) {
+    case 0xFC1C:
+        if (hi >= lo)
+            return code;
+        key_scan_end(ds);
+        return 0xFC00;
+
+    case 0xFC1D: {
+        int16_t rounded;
+
+        rounded = (int16_t)(uint16_t)(lo != 0
+                                      ? limit - (uint8_t)(limit % lo)
+                                      : limit);
+        if (rounded > (int16_t)(uint16_t)hi)
+            return (uint16_t)hi;
+        key_scan_end(ds);
+        return 0x0000;
+    }
+
+    case 0xFC1E:
+        if (limit != hi)
+            return (uint16_t)(0xFC00u | limit);
+        key_scan_end(ds);
+        return 0xFC00;
+
+    case 0xFC1F:
+        if (hi != 0)
+            return code;
+        key_scan_end(ds);
+        return 0xFC00;
+
+    default:
+        return code;
+    }
 }

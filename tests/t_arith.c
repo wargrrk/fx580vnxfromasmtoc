@@ -11,6 +11,12 @@ W1(tall_metric_from_font)
 W1(small_metric_from_font)
 W1(reset_flags_and_state)
 
+static uint16_t a_key_repeat_gate(uint8_t *ds, const uint16_t *e,
+                                  const uint16_t *s)
+{
+    return key_repeat_gate(ds, e[0], s);
+}
+
 void test_arith(void)
 {
     BATCH(
@@ -20,7 +26,37 @@ void test_arith(void)
         {"tall_metric_from_font", 0x27E86, "w", a_tall_metric_from_font, 0},
         {"small_metric_from_font", 0x2805E, "w", a_small_metric_from_font, 0},
         {"reset_flags_and_state", 0x2AB3C, "w", a_reset_flags_and_state, 0},
+        {"key_repeat_gate", 0x28414, "w|w", a_key_repeat_gate, 0},
     );
+
+    /* 0x28414 - the four repeat-key codes are the only interesting ones, so
+     * walk them against every low byte the caller can supply and a row byte on
+     * both sides of the limit.  0xFC1D divides by the low byte, so zero and one
+     * have to be in the sweep as well as the values that divide 11 evenly. */
+    {
+        static const uint16_t codes[] = {0xFC1C, 0xFC1D, 0xFC1E, 0xFC1F,
+                                         0x0000, 0xFC1B, 0xFFFF};
+        static const uint8_t his[] = {0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12,
+                                      13, 22, 23, 127, 128, 200, 255};
+
+        for (size_t c = 0; c < sizeof(codes) / sizeof(codes[0]); c++) {
+            for (unsigned lo = 0; lo < 24; lo++) {
+                for (size_t h = 0; h < sizeof(his) / sizeof(his[0]); h++) {
+                    random_image((uint32_t)(0x28414u + c * 977u + lo * 31u +
+                                            h));
+                    image[0x3EA0] = 11;
+                    Args args = {.er = {(uint16_t)(lo | (his[h] << 8))},
+                                 .stk = {codes[c]}, .nstk = 1};
+                    uint16_t rom_ret = run_rom(0x28414, &args,
+                                               "key_repeat_gate");
+                    begin_c();
+                    check_ret("key_repeat_gate", rom_ret,
+                              key_repeat_gate(after_c, args.er[0], args.stk));
+                    check_mem_all("key_repeat_gate");
+                }
+            }
+        }
+    }
 
     /* 0x27E60 - the limit is 181, so pin the count byte on both sides of the
      * boundary the flag turns over at */

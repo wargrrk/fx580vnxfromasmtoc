@@ -116,6 +116,7 @@ uint16_t row_count_over_limit(uint8_t *ds, uint8_t add);
 uint16_t init_descriptor_record(uint8_t *ds, uint16_t dst);
 void draw_bar_frames(uint8_t *ds, uint8_t index);
 uint16_t pitch_from_state(uint8_t *ds, uint16_t arg);
+uint16_t key_repeat_gate(uint8_t *ds, uint16_t arg, const uint16_t *stk);
 uint16_t tall_metric_from_font(uint8_t *ds, uint16_t arg);
 uint16_t small_metric_from_font(uint8_t *ds, uint16_t arg);
 uint16_t reset_flags_and_state(uint8_t *ds, uint16_t arg);
