@@ -55,6 +55,6 @@ must stay at `0 failures`.
 ### Progress
 
 `python3 tools/coverage.py` reports how much of the firmware has a verified C
-body (currently 10.5% of routines, 9.2% of instructions). See
+body (currently 10.7% of routines, 9.7% of instructions). See
 [`docs/progress.md`](docs/progress.md) for the details and the plan for the
 remaining work.

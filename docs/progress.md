@@ -12,15 +12,21 @@ python3 tools/frontier.py        # routines that can be translated next
 ```
 
 `tools/coverage.py` counts a routine as translated when its entry address
-appears in an address annotation in `src/*.c` / `src/*.h` (`/* 0xNNNNN - ... */`,
-the convention every C function in this project uses). Routine bodies and
-sizes come from `build/disas.json`, so the two numbers are measured on the same
-partition:
+appears in an address annotation *directly above a declaration* in `src/*.c` /
+`src/*.h` (`/* 0xNNNNN - ... */`, the convention every C function in this
+project uses).  The adjacency matters: merely mentioning an address elsewhere -
+a TODO note, a prose range such as `0x0AC30-0x0C000`, or a data argument like
+`subtract_words(rom, 0x20000, ...)` - does not count, so the percentage cannot
+be inflated without writing a function.  Both tools share this rule through
+`tools/romdb.py`.
+
+Routine bodies and sizes come from `build/disas.json`, so the two numbers are
+measured on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 117 / 1113 (10.5%) |
-| instructions | 2509 / 27414 (9.2%) |
+| routines | 119 / 1113 (10.7%) |
+| instructions | 2647 / 27414 (9.7%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
@@ -29,7 +35,10 @@ in the ROM.)
 ## How a routine gets translated
 
 1. `python3 tools/frontier.py` lists routines whose callees are already done -
-   only those can be diff-tested immediately.
+   only those can be diff-tested immediately.  `ENTER`/`LEAVE` count as done
+   for this purpose even though they have no C body: the frame they build is
+   modelled by the calling convention itself, and `tools/romdb.py` lists them
+   in `STRUCTURAL_ENTRIES`.
 2. `python3 tools/fdump.py 0xNNNNN` prints the annotated body; every branch
    target, call and data label is resolved.
 3. The C body goes into the module for its subsystem, with the ROM address in
@@ -42,7 +51,7 @@ in the ROM.)
 
 ## Where the remaining work is
 
-The call graph is the schedule. `tools/frontier.py` currently reports ~425
+The call graph is the schedule. `tools/frontier.py` currently reports ~412
 routines that are ready (all callees already translated), and the count grows
 as routines land, so the work does not run out.
 
