@@ -310,6 +310,15 @@ uint8_t print_mode_label(uint8_t *ds)
     return line_print(ds, 0x0100, string, NULL);
 }
 
+/* 0x08F02 / 0x08F04 - expand one level of a nested smart string into the
+ * 64-byte frame at `buf` and print it at the origin.  Tags 2 and 4 pull a
+ * constant out of the string tables (tag 4 sets the high byte of the index)
+ * and everything else is copied verbatim.  When the expanded text is longer
+ * than DECOMP_MAX the ROM asks for a copy into the static buffer at 0x1DB4
+ * with the arguments swapped, so the frame ends up holding the string kept
+ * there; printing still continues from the frame.  Returns the character
+ * count from line_print and, through `end_out`, the source pointer past the
+ * terminator. */
 uint16_t str_decompress_print(uint8_t *ds, uint16_t str, uint16_t buf,
                               uint16_t *end_out)
 {

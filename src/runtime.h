@@ -36,6 +36,8 @@ uint8_t unpack_decimal_record(uint8_t *ds, uint16_t source, uint16_t output);
 uint16_t replace_trailing_token(uint8_t *ds, uint16_t string, uint8_t value);
 uint8_t expand_string_token(uint8_t *ds, uint16_t code, uint16_t output);
 uint16_t string_copy_with_nul(uint8_t *ds, uint16_t dst, uint16_t src);
+uint16_t expand_glyph_mask(uint8_t *ds, uint16_t src, uint16_t out,
+                           uint16_t length);
 
 /* mem.c - 0x26FFA, 0x0A8AA, 0x1EB94, 0x09D34 */
 uint16_t memcpy_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n);
@@ -50,6 +52,8 @@ uint16_t table_slot_store(uint8_t *ds, uint16_t offset, uint16_t value,
                           uint8_t index);
 uint8_t compare_bcd_records(uint8_t *ds);
 uint8_t decimal_record_predicate(uint8_t *ds);
+uint16_t table_slot_fold(uint8_t *ds, uint16_t delta, uint16_t extra,
+                         uint16_t apply_global, uint16_t start);
 
 /* mem.c - 0x09DE6: variable-slot save (plus its matrix/vector shadow) */
 uint16_t assign_var(uint8_t *ds, uint8_t slot, uint16_t src);

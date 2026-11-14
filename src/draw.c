@@ -178,3 +178,107 @@ uint16_t screen_rows_clear_from(uint8_t *ds, uint16_t index)
 
     return memzero(ds, (uint16_t)(0xDDD4u + offset), count);
 }
+
+/* Pack a pixel the way every routine here does: (y << 8) | x, both bytes. */
+static uint16_t pix(uint8_t x, uint8_t y)
+{
+    return (uint16_t)(((uint16_t)y << 8) | x);
+}
+
+/* 0x08D00 - the outline of a menu/selection frame.  The two vertical strokes
+ * are always drawn from the start row to the row named by the low byte of
+ * `spec`; the four corner groups are gated by bits of the high byte and, on
+ * the bottom edge, use the row the loop finished on (r9 is part of er8, so
+ * `mov er0, er8` after the loop reloads the *final* row). */
+void box_frame(uint8_t *ds, uint16_t xy, uint16_t spec)
+{
+    uint8_t x = (uint8_t)xy;
+    uint8_t y = (uint8_t)(xy >> 8);
+    uint8_t end_y = (uint8_t)spec;
+    uint8_t flags = (uint8_t)(spec >> 8);
+
+    if (flags & 0x80) {
+        screen_pixel(ds, pix((uint8_t)(x + 2), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x + 3), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x + 2), (uint8_t)(y + 1)), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x + 3), (uint8_t)(y + 1)), 0, 0);
+    }
+
+    if (flags & 0x20) {
+        screen_pixel(ds, pix((uint8_t)(x - 1), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x - 2), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x - 1), (uint8_t)(y + 1)), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x - 2), (uint8_t)(y + 1)), 0, 0);
+    }
+
+    /* r9 counts up and wraps at 8 bits, so the loop always reaches end_y. */
+    for (;;) {
+        screen_pixel(ds, pix(x, y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x + 1), y), 0, 0);
+        if (y == end_y)
+            break;
+        y = (uint8_t)(y + 1);
+    }
+
+    if (flags & 0x40) {
+        screen_pixel(ds, pix((uint8_t)(x + 2), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x + 3), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x + 2), (uint8_t)(y - 1)), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x + 3), (uint8_t)(y - 1)), 0, 0);
+    }
+
+    if (flags & 0x10) {
+        screen_pixel(ds, pix((uint8_t)(x - 1), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x - 2), y), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x - 1), (uint8_t)(y - 1)), 0, 0);
+        screen_pixel(ds, pix((uint8_t)(x - 2), (uint8_t)(y - 1)), 0, 0);
+    }
+}
+
+/* 0x08DC0 - a thick rounded box.  The top two rows are drawn first, the sides
+ * run from `y + 2` to `(spec & 0xFF) - 2`, and on the row equal to the high
+ * byte of `spec` the left side is pulled one column further out (the notch
+ * that squares the corner).  The last two rows are drawn after the loop. */
+void box_round_rect(uint8_t *ds, uint16_t xy, uint16_t spec)
+{
+    uint8_t x = (uint8_t)xy;
+    uint8_t y = (uint8_t)(xy >> 8);
+    uint8_t mid = (uint8_t)(spec >> 8);
+    uint8_t end_y = (uint8_t)((uint8_t)spec - 2);
+
+    screen_pixel(ds, pix((uint8_t)(x + 2), y), 0, 0);
+    screen_pixel(ds, pix((uint8_t)(x + 3), y), 0, 0);
+    screen_pixel(ds, pix((uint8_t)(x + 1), (uint8_t)(y + 1)), 0, 0);
+    screen_pixel(ds, pix((uint8_t)(x + 2), (uint8_t)(y + 1)), 0, 0);
+
+    y = (uint8_t)(y + 2);
+
+    for (;;) {
+        screen_pixel(ds, pix(x, y), 0, 0);
+
+        if (y == mid) {
+            screen_pixel(ds, pix((uint8_t)(x - 1), y), 0, 0);
+            screen_pixel(ds, pix((uint8_t)(x - 1), (uint8_t)(y - 1)), 0, 0);
+            screen_pixel(ds, pix((uint8_t)(x - 1), (uint8_t)(y + 1)), 0, 0);
+            /* The notch falls through into the .l_05C store, so this pixel is
+             * drawn only on the `mid` row. */
+            screen_pixel(ds, pix((uint8_t)(x - 2), y), 0, 0);
+        } else {
+            screen_pixel(ds, pix((uint8_t)(x + 1), y), 0, 0);
+        }
+
+        if (y == end_y)
+            break;
+        y = (uint8_t)(y + 1);
+    }
+
+    y = (uint8_t)(y + 1);
+    screen_pixel(ds, pix(x, y), 0, 0);
+    screen_pixel(ds, pix((uint8_t)(x + 1), y), 0, 0);
+
+    y = (uint8_t)(y + 1);
+    screen_pixel(ds, pix((uint8_t)(x + 1), y), 0, 0);
+    screen_pixel(ds, pix((uint8_t)(x + 2), y), 0, 0);
+    screen_pixel(ds, pix((uint8_t)(x + 2), (uint8_t)(y + 1)), 0, 0);
+    screen_pixel(ds, pix((uint8_t)(x + 3), (uint8_t)(y + 1)), 0, 0);
+}

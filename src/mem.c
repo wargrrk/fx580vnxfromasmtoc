@@ -314,3 +314,56 @@ uint16_t table_slot_store(uint8_t *ds, uint16_t offset, uint16_t value,
     return (uint16_t)((offset & 0xFF00u) |
                       (uint8_t)((uint8_t)offset - ds[0xD144]));
 }
+
+/* 0x0CD86 - fold `delta` into the 8-byte slots of the 0xDBE4 table.
+ *
+ * The slot count comes from 0xD169 (falling back to 0xD013 when that byte is
+ * zero).  Starting at `start`, every slot whose second byte lies in
+ * [low, high) - both taken from the slot at `start` - gets `delta` added to
+ * its 16-bit word, and when `apply_global` is set the same delta is folded
+ * into the global counters at 0xD00E (word) and 0xD010 (byte, low half of
+ * `extra`).  The table lives in ROM on this firmware, so the slot stores are
+ * issued but dropped, which is why the constants reload unchanged.
+ */
+uint16_t table_slot_fold(uint8_t *ds, uint16_t delta, uint16_t extra,
+                         uint16_t apply_global, uint16_t start)
+{
+    uint8_t limit = ds[0xD169];
+    uint8_t i = (uint8_t)start;
+
+    if (ds[0xD169] == 0)
+        limit = ds[0xD013];
+
+    if (delta != 0) {
+        uint16_t base = (uint16_t)(0x0DBE4u + (uint16_t)i * 8u);
+        uint8_t low = ds[(uint16_t)(base + 2)];
+        uint8_t high = ds[(uint16_t)(base + 3)];
+
+        while (i < limit) {
+            uint16_t entry = (uint16_t)(0x0DBE4u + (uint16_t)i * 8u);
+            uint8_t key = ds[(uint16_t)(entry + 2)];
+
+            if (key >= low && key < high) {
+                uint16_t acc = (uint16_t)(ds[entry] |
+                                          ((uint16_t)ds[(uint16_t)(entry + 1)] << 8));
+                acc = (uint16_t)(acc + delta);
+                if (entry >= 0xD000u) {
+                    ds[entry] = (uint8_t)acc;
+                    ds[(uint16_t)(entry + 1)] = (uint8_t)(acc >> 8);
+                }
+            }
+            i++;
+        }
+    }
+
+    if (apply_global != 0) {
+        uint16_t counter = (uint16_t)(ds[0xD00E] |
+                                      ((uint16_t)ds[0xD00F] << 8));
+        counter = (uint16_t)(counter + delta);
+        ds[0xD00E] = (uint8_t)counter;
+        ds[0xD00F] = (uint8_t)(counter >> 8);
+        ds[0xD010] = (uint8_t)(ds[0xD010] + (uint8_t)extra);
+    }
+
+    return 0;
+}

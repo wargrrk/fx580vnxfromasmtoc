@@ -21,7 +21,10 @@
 void screen_blend(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask);
 void screen_blend_immediate(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask);
 
-/* 0x091E2 / 0x091E6 / 0x091EA - set or clear one pixel in the current buffer. */
+/* 0x091E2 / 0x091E6 / 0x091EA - set or clear one pixel in the current buffer.
+ * The three entry points share one body: 0x091E2 sets without checking bounds
+ * (its `bc al` jumps straight past the range test), 0x091E6 clears a
+ * bounds-checked pixel and 0x091EA sets a bounds-checked one. */
 void screen_pixel(uint8_t *ds, uint16_t xy, int clear, int check_bounds);
 
 /* 0x094C8: address of the byte containing pixel (x, y) in the current packed

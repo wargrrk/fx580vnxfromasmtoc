@@ -89,6 +89,11 @@ void run_batch(const BatchCase *cases, int count);
     {                                                                          \
         return f(ds, e[0], s[0], s[1]);                                        \
     }
+#define W2S2(f)                                                                \
+    static uint16_t a_##f(uint8_t *ds, const uint16_t *e, const uint16_t *s)   \
+    {                                                                          \
+        return f(ds, e[0], e[1], s[0], s[1]);                                  \
+    }
 
 #define BATCH(...) run_batch((const BatchCase[]){__VA_ARGS__},                 \
                              (int)(sizeof((const BatchCase[]){__VA_ARGS__}) /   \

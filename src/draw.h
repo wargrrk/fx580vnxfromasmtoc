@@ -37,4 +37,16 @@ uint16_t screen_rows_clear_from(uint8_t *ds, uint16_t index);
  * 0x091EA, which does no bounds check. */
 void draw_line(uint8_t *ds, uint16_t start, uint16_t end);
 
+/* 0x08D00 - two 2-pixel vertical strokes from `y` down to the low byte of
+ * `spec`, plus four optional corner groups selected by the high byte:
+ * 0x80 right-top, 0x20 left-top, 0x40 right-bottom, 0x10 left-bottom.  The
+ * bottom groups use the row the loop stopped on, so the box closes on
+ * `spec & 0xFF`.  Plots through 0x091E2 (bounds-checked). */
+void box_frame(uint8_t *ds, uint16_t xy, uint16_t spec);
+
+/* 0x08DC0 - a 2-pixel-thick rounded box: the loop runs from `y + 2` to
+ * `(spec & 0xFF) - 2`, clamping the sides on the row that matches
+ * `spec >> 8`, and the two closing rows are drawn after it. */
+void box_round_rect(uint8_t *ds, uint16_t xy, uint16_t spec);
+
 #endif

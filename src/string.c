@@ -286,6 +286,56 @@ uint8_t expand_string_token(uint8_t *ds, uint16_t code, uint16_t output)
     return result;
 }
 
+/* 0x2B334 - expand a glyph-mask prefix and append a run of raw text.
+ *
+ * `src` holds one mask byte per source cell.  `out` is the destination
+ * buffer and `length` is a byte string giving, per cell, how many raw text
+ * bytes follow it.  For every cell the original reads mask byte `b`: when `b`
+ * is non-zero it emits a marker (96 for 1, 208 for anything else) and then,
+ * for 3 and 4, a second code (96 for 3, 208 for 4).  After the markers the raw
+ * byte at `length[i]` is appended at `out[i + out_len]`.  Cells whose mask
+ * byte is 0 contribute only that raw byte.  Every store lands at
+ * `out + i + out_len`, so the running marker count shifts later cells along.
+ * The loop runs while `i <= byte_strlen_n(length)` and returns 1.
+ *
+ * The original keeps the two indices in `r13` (source index) and `r12`
+ * (destination index); both wrap at 8 bits, which the casts preserve. */
+uint16_t expand_glyph_mask(uint8_t *ds, uint16_t src, uint16_t out,
+                           uint16_t length)
+{
+	uint8_t n = byte_strlen_n(ds, length);
+	uint8_t i;
+	uint8_t out_len = 0;
+	unsigned guard = 0;
+
+	/* `i` is 8-bit like `r13`; stop instead of wrapping forever when n is 255. */
+	for (i = 0; i <= n && guard++ < 256; i++) {
+		uint8_t b = ds[(uint16_t)(src + i)];
+		uint8_t code = 0;
+
+		if (b == 0)
+			goto copy_raw;
+
+		ds[(uint16_t)(out + i + out_len)] = (b == 1) ? 96 : 208;
+		out_len++;
+
+		if (b == 4)
+			code = 208;
+		else if (b == 3)
+			code = 96;
+
+		if (code != 0) {
+			ds[(uint16_t)(out + i + out_len)] = code;
+			out_len++;
+		}
+
+copy_raw:
+		ds[(uint16_t)(out + i + out_len)] = ds[(uint16_t)(length + i)];
+	}
+
+	return 1;
+}
+
 /* 0x0E1E8 - copy a NUL-terminated string including its terminator: the ROM
  * takes `byte_strlen_n(src) + 1` and memcpy's that many bytes. */
 uint16_t string_copy_with_nul(uint8_t *ds, uint16_t dst, uint16_t src)
