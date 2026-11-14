@@ -35,7 +35,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # these two are covered by the calling convention rather than by a function.
 # They are listed explicitly so a caller is not blocked by a callee that can
 # never appear in src/.  They are *not* counted as translated routines.
-STRUCTURAL_ENTRIES = frozenset({0x0AC30, 0x0AC38})
+STRUCTURAL_ENTRIES = frozenset({0x0AC30, 0x0AC38, 0x2110A})
+
+# Entries that are not functions at all and can never have a C body of their
+# own: the frame plumbing above (which every translation already models), the
+# reset vector, and the interrupt return stub.  Keeping them in the denominator
+# would cap coverage below 100% for ever.
+NOT_A_FUNCTION = frozenset({0x00004, 0x0A1BC, 0x0AC30, 0x0AC38, 0x2110A})
 
 
 def load_db(root=ROOT):
@@ -143,11 +149,15 @@ def function_bodies(db):
     0x24F26 behind 0x0C362's `b LEAVE`.
     """
     insns = {int(i["addr"], 16): i for i in db["insns"]}
-    owners = sorted(set(entry_owners(db).values()))
+    everything = sorted(set(entry_owners(db).values()))
+    owners = [a for a in everything if a not in NOT_A_FUNCTION]
 
     out = {}
     for index, owner in enumerate(owners):
-        end = owners[index + 1] if index + 1 < len(owners) else 1 << 20
+        # Boundaries come from the full list, so a stub in between belongs to
+        # nobody instead of being charged to the function before it.
+        end = everything[everything.index(owner) + 1] \
+            if everything.index(owner) + 1 < len(everything) else 1 << 20
         seen = set()
         stack = [owner]
         callees = set()

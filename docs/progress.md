@@ -32,8 +32,8 @@ on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 120 / 768 (15.6%) |
-| instructions | 3338 / 32764 (10.2%) |
+| routines | 143 / 763 (18.7%) |
+| instructions | 3451 / 32751 (10.5%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
