@@ -85,15 +85,32 @@ void check_ret(const char *what, uint16_t rom_ret, uint16_t c_ret)
 
 void check_mem(const char *what, uint32_t from, uint32_t to)
 {
+    const int show = 8;
+    int shown = 0;
+    int total = 0;
+
     checks++;
     for (uint32_t a = from; a < to; a++) {
-        if (after_rom[a] != after_c[a]) {
-            failures++;
-            printf("FAIL %-24s mem: %04X rom=%02X c=%02X\n",
-                   what, a, after_rom[a], after_c[a]);
-            return;
+        if (after_rom[a] == after_c[a])
+            continue;
+        if (shown < show) {
+            printf("FAIL %-24s mem: %04X rom=%02X c=%02X\n", what, a,
+                   after_rom[a], after_c[a]);
+            shown++;
         }
+        total++;
     }
+    if (total == 0)
+        return;
+
+    failures++;
+    /* The count is what tells "one stray pixel" from "the whole routine is
+     * wrong"; the addresses above only show where it starts. */
+    if (total > shown)
+        printf("FAIL %-24s mem: %d differing bytes (first %d listed)\n", what,
+               total, shown);
+    else
+        printf("FAIL %-24s mem: %d differing bytes\n", what, total);
 }
 
 void harness_load_rom(const char *path)
