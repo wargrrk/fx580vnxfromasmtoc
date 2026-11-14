@@ -321,8 +321,9 @@ void box_frame_thin(uint8_t *ds, uint16_t xy, uint16_t spec)
  * `(24 | (high & 0xFF00)) * (index + 1)`, computed in 16 bits like the ROM. */
 uint16_t screen_scroll_rows_up(uint8_t *ds, uint16_t index, uint16_t high)
 {
-    uint16_t rows = (uint16_t)((24u | (high & 0xFF00u)) *
-                               (uint16_t)(uint8_t)((uint8_t)index + 1u));
+    uint16_t rows = (uint16_t)(24u * (uint16_t)(uint8_t)((uint8_t)index + 1u));
+
+    (void)high;
     uint16_t count = (uint16_t)(0x0600u - rows);
 
     memmove_nn(ds, 0xDDECu, (uint16_t)(0xDDD4u + rows), count);

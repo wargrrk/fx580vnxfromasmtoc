@@ -11,6 +11,11 @@
  * ABI (Casio's compiler): 16-bit arguments travel in er0, er2, er4, er6, more
  * arguments are pushed on the stack, and the result comes back in er0.  The
  * test harness in tests/ adapts those register-level conventions.
+ *
+ * Trap worth remembering: `mul erN, rM` multiplies the *low bytes* only.  The
+ * ROM returns a product of 0 for 0x0100 and treats 0x7FFF exactly like 0xFF,
+ * so a translation must cast the operand to uint8_t before multiplying - the
+ * 16-bit product of the two bytes is still a full word.
  */
 #ifndef NX_RUNTIME_H
 #define NX_RUNTIME_H
@@ -49,8 +54,11 @@ uint16_t memmove_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n);
 uint16_t memset_n(uint8_t *ds, uint16_t dst, uint8_t value, uint16_t n);
 uint16_t memzero(uint8_t *ds, uint16_t dst, uint16_t n);
 
-/* mem.c - 0x09D26 */
+/* mem.c - 0x09D26, 0x2ABDA, 0x143CA, 0x14C18 */
 uint16_t clear_block_d16c(uint8_t *ds);
+uint16_t max_u16(uint8_t *ds, uint16_t a, uint16_t b);
+uint16_t clear_160_bytes(uint8_t *ds, uint16_t dst);
+uint16_t clear_200_bytes(uint8_t *ds, uint16_t dst);
 void shift_range_offsets(uint8_t *ds, uint16_t delta, uint8_t lower,
 						 uint8_t start);
 uint16_t record_template_06(uint8_t *ds, uint16_t dst);

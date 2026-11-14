@@ -288,3 +288,52 @@ uint16_t constant_four(uint8_t *ds)
     (void)ds;
     return 4;
 }
+
+/* 0x2083C - fold the low nibble of the argument into the high nibble of the
+ * state byte, keeping the byte's existing low nibble.  Every step is 8-bit
+ * (`and r1, 15`, `sll r0, 4`, `or r1, r0`), so the result word is the shifted
+ * argument in the low half and the merged byte in the high half. */
+uint16_t state_nibble_merge(uint8_t *ds, uint16_t value)
+{
+    uint8_t merged = (uint8_t)((ds[0xD118] & 0x0Fu) | ((uint8_t)value << 4));
+
+    ds[0xD118] = merged;
+    return (uint16_t)(((uint16_t)merged << 8) | (uint8_t)((uint8_t)value << 4));
+}
+
+/* 0x28FB0 - 1 when the low byte of the argument is 2, else 0. */
+uint16_t value_is_two(uint8_t *ds, uint16_t value)
+{
+    (void)ds;
+    return ((uint8_t)value == 2) ? 1 : 0;
+}
+
+/* 0x2F622 - 1 when the low byte of the argument is 3, else 0. */
+uint16_t value_is_three(uint8_t *ds, uint16_t value)
+{
+    (void)ds;
+    return ((uint8_t)value == 3) ? 1 : 0;
+}
+
+/* 0x2F9F6 - bit 7 of the modifier byte at 0xD110. */
+uint16_t modifier_bit7(uint8_t *ds)
+{
+    return ((ds[0xD110] & 0x80u) != 0) ? 1 : 0;
+}
+
+/* 0x2FA02 - the byte at 0xD156 added to the word at 0xD00C. */
+uint16_t counter_sum_0D156(uint8_t *ds)
+{
+    uint16_t base = (uint16_t)(ds[0xD00C] | ((uint16_t)ds[0xD00D] << 8));
+
+    return (uint16_t)(ds[0xD156] + base);
+}
+
+/* 0x18940 - the argument times ten, walked from the 0xDA40 table base.
+ * `mul er0, r2` multiplies the *low bytes* only: 0x0100 gives a product of 0
+ * and 0x7FFF gives the same table entry as 0xFF. */
+uint16_t record_10b_0DA40(uint8_t *ds, uint16_t value)
+{
+    (void)ds;
+    return (uint16_t)((uint16_t)((uint8_t)value * 10u) + 0xDA40u);
+}

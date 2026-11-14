@@ -51,10 +51,7 @@ void test_draw(void)
         {"cell_record_addr", 0x09C4C, "ww", a_cell_record_addr, 0},
         {"screen_rows_clear_from", 0x08BDE, "s", a_screen_rows_clear_from, 0},
         {"box_frame_thin", 0x08CB8, "ww!", a_box_frame_thin, 0},
-        /* `high` is fixed at zero: callers pass only the row counter, and a nonzero
-           high byte makes the row count wrap far past buffer 1, where the copy
-           overruns the data segment and the ROM stops instead of wrapping. */
-        {"screen_scroll_rows_up", 0x08C7A, "sz!", a_screen_scroll_rows_up, 0},
+        {"screen_scroll_rows_up", 0x08C7A, "sw!", a_screen_scroll_rows_up, 0},
         {"box_frame", 0x08D00, "ww!", a_box_frame, 0},
         {"box_round_rect", 0x08DC0, "ww!", a_box_round_rect, 0},
         {"draw_line", 0x08E62, "ww!", a_draw_line, 0},

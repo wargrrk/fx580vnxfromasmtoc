@@ -31,6 +31,12 @@ W1(state_store)
 W1(offset_minus_cc)
 W0(read_0F014)
 W0(constant_four)
+W1(state_nibble_merge)
+W1(value_is_two)
+W1(value_is_three)
+W0(modifier_bit7)
+W0(counter_sum_0D156)
+W1(record_10b_0DA40)
 
 void test_hw(void)
 {
@@ -63,5 +69,11 @@ void test_hw(void)
         {"offset_minus_cc", 0x14C9C, "w", a_offset_minus_cc, 0},
         {"read_0F014", 0x09FD8, "", a_read_0F014, 0},
         {"constant_four", 0x29978, "", a_constant_four, 0},
+        {"state_nibble_merge", 0x2083C, "b", a_state_nibble_merge, 0},
+        {"value_is_two", 0x28FB0, "b", a_value_is_two, 0},
+        {"value_is_three", 0x2F622, "b", a_value_is_three, 0},
+        {"modifier_bit7", 0x2F9F6, "", a_modifier_bit7, 0},
+        {"counter_sum_0D156", 0x2FA02, "", a_counter_sum_0D156, 0},
+        {"record_10b_0DA40", 0x18940, "w", a_record_10b_0DA40, 0},
     );
 }

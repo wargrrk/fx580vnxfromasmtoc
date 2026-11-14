@@ -114,4 +114,20 @@ uint16_t read_0F014(uint8_t *ds);
 /* 0x29978 - constant 4. */
 uint16_t constant_four(uint8_t *ds);
 
+/* 0x2083C - merge the argument's low nibble into the state byte's high one. */
+uint16_t state_nibble_merge(uint8_t *ds, uint16_t value);
+
+/* 0x28FB0 / 0x2F622 - compare the low byte against 2 and 3. */
+uint16_t value_is_two(uint8_t *ds, uint16_t value);
+uint16_t value_is_three(uint8_t *ds, uint16_t value);
+
+/* 0x2F9F6 - bit 7 of the modifier byte at 0xD110. */
+uint16_t modifier_bit7(uint8_t *ds);
+
+/* 0x2FA02 - byte at 0xD156 plus the word at 0xD00C. */
+uint16_t counter_sum_0D156(uint8_t *ds);
+
+/* 0x18940 - argument * 10, based at 0xDA40. */
+uint16_t record_10b_0DA40(uint8_t *ds, uint16_t value);
+
 #endif

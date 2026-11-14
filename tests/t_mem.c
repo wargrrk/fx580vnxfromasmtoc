@@ -1,9 +1,14 @@
 /* t_mem.c - differential tests for the block memory cluster. */
+#include "batch.h"
 #include "harness.h"
 
 #include <string.h>
 
 #include "../src/runtime.h"
+
+W2(max_u16)
+W1(clear_160_bytes)
+W1(clear_200_bytes)
 
 static void test_memcpy(void)
 {
@@ -307,8 +312,18 @@ static void test_init_numeric_state(void)
     }
 }
 
+static void test_small_leaves(void)
+{
+    BATCH(
+        {"max_u16", 0x2ABDA, "ww", a_max_u16, 0},
+        {"clear_160_bytes", 0x143CA, "p", a_clear_160_bytes, 0},
+        {"clear_200_bytes", 0x14C18, "p", a_clear_200_bytes, 0},
+    );
+}
+
 void test_mem(void)
 {
+    test_small_leaves();
     test_memcpy();
     test_memmove();
     test_memset();

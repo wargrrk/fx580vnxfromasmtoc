@@ -389,3 +389,23 @@ uint16_t clear_block_d16c(uint8_t *ds)
 {
     return memzero(ds, 0xD16Cu, 20);
 }
+
+/* 0x2ABDA - the larger of the two arguments in unsigned order: `bc le` tests
+ * zero-or-borrow, so an argument below the other is the one replaced. */
+uint16_t max_u16(uint8_t *ds, uint16_t a, uint16_t b)
+{
+    (void)ds;
+    return (a <= b) ? b : a;
+}
+
+/* 0x143CA - clear 160 bytes at dst. */
+uint16_t clear_160_bytes(uint8_t *ds, uint16_t dst)
+{
+    return memzero(ds, dst, 160);
+}
+
+/* 0x14C18 - clear 200 bytes at dst. */
+uint16_t clear_200_bytes(uint8_t *ds, uint16_t dst)
+{
+    return memzero(ds, dst, 200);
+}
