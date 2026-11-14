@@ -8,13 +8,26 @@
  */
 #include "runtime.h"
 
+/* The data space is a flat 64 KiB window but only 0xD000-0xEFFF latches a
+ * store: below 0xD000 sits the ROM (nx8_write drops those) and above 0xEC00 the
+ * stack guard.  A copy whose count runs off the end of the segment wraps into
+ * ROM addresses, so the wrapped half of the copy has to disappear the same way.
+ * Reads still see the ROM bytes, which is why only the store side is guarded. */
+#define RAM_START 0xD000u
+
+static void ds_store(uint8_t *ds, uint16_t addr, uint8_t value)
+{
+    if (addr >= RAM_START)
+        ds[addr] = value;
+}
+
 /* 0x26FFA */
 uint16_t memcpy_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n)
 {
     uint16_t d = dst;
     uint16_t s = src;
     while (n > 0) {
-        ds[d++] = ds[s++];
+        ds_store(ds, d++, ds[s++]);
         n--;
     }
     return dst;
@@ -30,7 +43,7 @@ uint16_t memmove_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n)
     if ((int16_t)src >= (int16_t)dst || (int16_t)dst >= (int16_t)(uint16_t)(src + n)) {
         /* forward */
         while (n > 0) {
-            ds[d++] = ds[s++];
+            ds_store(ds, d++, ds[s++]);
             n--;
         }
     } else {
@@ -40,7 +53,7 @@ uint16_t memmove_nn(uint8_t *ds, uint16_t dst, uint16_t src, uint16_t n)
         while (n > 0) {
             d--;
             s--;
-            ds[d] = ds[s];
+            ds_store(ds, d, ds[s]);
             n--;
         }
     }
@@ -52,7 +65,7 @@ uint16_t memset_n(uint8_t *ds, uint16_t dst, uint8_t value, uint16_t n)
 {
     uint16_t d = dst;
     while (n > 0) {
-        ds[d++] = value;
+        ds_store(ds, d++, value);
         n--;
     }
     return dst;
