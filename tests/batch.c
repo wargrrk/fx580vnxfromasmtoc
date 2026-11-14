@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_STK 4
+#define MAX_STK 6
 /* Every case is replayed with a fixed set of *boundary* arguments first and
  * then with random ones.  The firmware's decisions turn on specific values -
  * 10 for a digit count, 240/0xF0 for a lead byte, 181 for a row limit - and a
@@ -103,7 +103,7 @@ static void one_round(const BatchCase *cs, const uint16_t *er,
                       const uint16_t *stk, int nstk, const char *why)
 {
     uint16_t argv[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-    uint16_t no_stack[MAX_STK] = {0, 0, 0, 0};
+    uint16_t no_stack[MAX_STK] = {0};
     Args a = {.nstk = nstk};
 
     if (!stk)
@@ -139,7 +139,7 @@ static void run_case(const BatchCase *cs, int rounds)
     for (int round = 0; round < rounds; round++) {
         uint16_t er[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         uint16_t argv[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-        uint16_t stk[MAX_STK] = {0, 0, 0, 0};
+        uint16_t stk[MAX_STK] = {0};
         uint32_t extra = 0;
         int index = 0;
         int stack = 0;

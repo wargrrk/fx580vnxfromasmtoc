@@ -32,8 +32,8 @@ on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 157 / 763 (20.6%) |
-| instructions | 3709 / 32751 (11.3%) |
+| routines | 159 / 763 (20.8%) |
+| instructions | 3907 / 32751 (11.9%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
@@ -54,6 +54,7 @@ the core manual (`resource/nX-U8100 Core Instruction Manual.txt`) or against
 | immediates | printed in **decimal** in `resource/disas.asm`: `add r2, 22` is +0x16 | `tools/disasm.py` |
 | `[ea+]` on a multi-byte access | the bump happens first and the result is rounded down to even *again*, so an odd `ea` stays usable | `load_store()`, `bump_ea()` in `emu/nx8.c` |
 | multi-byte `st` | the bytes go out in **descending** address order (`ix = length-1 .. 0`) | `load_store()` in `emu/nx8.c` |
+| the `ENTER` frame | `push lr` pushes **lcsr and lr** (four bytes), so an `ENTER` frame is 16 bytes and the stacked arguments of a routine are at `16/18/20[er14]`, not `14/16/18` | `H_PUSHL` in `emu/nx8.c` (`mask & 8` pushes both) |
 | `BC AL` | condition nibble 14 really is unconditional; a backward `bc al` is a plain loop jump and the exit test sits at the loop head | §3.3 condition table (1000..1110 = NE, EQ, NV, OV, PS, NS, AL) |
 
 Consequence worth stating once: a block copy must not read and write one byte at
@@ -120,7 +121,7 @@ instruction percentage fastest, because those routines are big.
 ## A note on the 30% target
 
 30% of the instruction total is roughly 9800 instructions; at the
-current 11.3% the project is ~3700 instructions in. Reaching 30% therefore means
+current 11.3% the project is ~3900 instructions in. Reaching 30% therefore means
 translating on the order of 300 more routines, and the ones that are left are
 bigger and more entangled than the ones done so far (the easy leaf
 functions and hardware pokes are largely gone). Work in batches with

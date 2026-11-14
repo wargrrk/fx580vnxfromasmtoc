@@ -60,3 +60,12 @@ uint16_t row_buffer_clear_24(uint8_t *ds, uint16_t value);
 void box_round_rect(uint8_t *ds, uint16_t xy, uint16_t spec);
 
 #endif
+
+/* 0x2E918 - place the next glyph row.  `cell` is the running row offset and
+ * `pos` the counter the scroll consumes; the stacked words at 16/18/20[er14]
+ * are the x limit, the row height and the flag cell, and 22[er14] is read as a
+ * byte that lands in the low half of the fourth stacked word.  Returns 1 when the row was
+ * placed (or simply advanced) and 0 when it was refused, through LEAVE, so the
+ * high byte of the result is whatever r1 held on that path. */
+uint16_t glyph_row_insert(uint8_t *ds, uint16_t cell, uint16_t pos,
+                          const uint16_t *stk);

@@ -343,3 +343,163 @@ uint16_t row_buffer_clear_24(uint8_t *ds, uint16_t value)
 {
     return memzero(ds, 0xDDECu, (uint16_t)(24u * (uint16_t)(uint8_t)value));
 }
+
+/* Word loads and stores go through the core's alignment rule: the address bit
+ * 0 is dropped for anything wider than a byte, so an odd pointer reads and
+ * writes the word that starts one byte below it. */
+static uint16_t draw_ld16(const uint8_t *ds, uint16_t addr)
+{
+    uint16_t a = (uint16_t)(addr & 0xFFFEu);
+
+    return (uint16_t)(ds[a] | ((uint16_t)ds[(uint16_t)(a + 1)] << 8));
+}
+
+static void draw_st16(uint8_t *ds, uint16_t addr, uint16_t value)
+{
+    uint16_t a = (uint16_t)(addr & 0xFFFEu);
+
+    ds_put(ds, a, (uint8_t)value);
+    ds_put(ds, (uint16_t)(a + 1), (uint8_t)(value >> 8));
+}
+
+/* 0x09B90 - the shared tail of f_09B72.  `mov r1, 1` puts the 1 in the high
+ * half of er0 before the byte move overwrites only the low half, so this comes
+ * back as 0x0100 or 0x0101 rather than 0 or 1.  Callers that test `cmp r0, 0`
+ * only look at the low byte. */
+static uint16_t submode_is_one(uint8_t *ds)
+{
+    return (uint16_t)(0x0100u | ((ds[0xD116] & 0x0Fu) == 1u ? 1u : 0u));
+}
+
+/* 0x2E918 */
+uint16_t glyph_row_insert(uint8_t *ds, uint16_t cell, uint16_t pos,
+                          const uint16_t *stk)
+{
+    /* `push lr` pushes lcsr *and* lr, so the frame is sixteen bytes and the
+     * stacked words sit at er14 + 16/18/20 with the byte at 22. */
+    uint16_t x_p = stk[0];      /* 16[er14] */
+    uint16_t limit_p = stk[1];  /* 18[er14] */
+    uint16_t row_p = stk[2];    /* 20[er14] */
+    uint8_t extra = (uint8_t)stk[3];    /* 22[er14], read as a byte */
+
+    uint16_t acc = cell;        /* er0: r0 in the low byte, r1 in the high one */
+    uint16_t er6 = 0;
+    uint16_t er2 = 0;
+    uint16_t er12 = 0;
+    uint8_t font = ds[0xD137];
+    uint8_t r5 = 0;
+    uint8_t flag = 0;
+    uint8_t f1 = 0;
+    uint8_t f2 = 0;
+
+    ds_put(ds, row_p, 0);                               /* 2E92E */
+
+    /* 2E930 mov r0, r4 ; 2E932 mov r1, 0 */
+    acc = font;
+    er12 = (uint16_t)(draw_ld16(ds, cell) + acc);        /* 2E934..2E936 */
+    er6 = er12;                                         /* 2E938 */
+    er12 = (uint16_t)(er12 + acc);                      /* 2E93A */
+
+    if (!((int16_t)er12 > 65))                          /* 2E93C bc gts */
+        goto tail;
+
+    if ((uint8_t)submode_is_one(ds) == 0)               /* 2E946..2E94C */
+        goto l_090;
+    if (ds[limit_p] == 0)                               /* 2E950..2E952 */
+        goto l_090;
+    if (extra != 0)                                     /* 2E954..2E956 */
+        goto l_064;
+
+    er2 = ds[limit_p];                                  /* 2E958 l r2 ; r3 = 0 */
+    acc = (uint16_t)(font + er2);                       /* 2E95C..2E960 */
+    if ((int16_t)acc <= 65)                             /* 2E966 bc les */
+        return (uint16_t)(acc & 0xFF00u);               /* 2E970 .l_058 */
+    if (ds[x_p] >= 192)                                 /* 2E96C bc ge */
+        ds_put(ds, x_p, ds[0xD156]);                    /* 2E976 .l_05E */
+    else
+        return (uint16_t)(acc & 0xFF00u);
+
+l_064:
+    acc = (uint16_t)((acc & 0x00FFu) | 0x0100u);        /* 2E97C mov r1, 1 */
+    if (ds[0xD111] == 2)                                /* 2E982 */
+        acc = (uint16_t)((acc & 0x00FFu) | 0x0F00u);    /* 2E986 mov r1, 15 */
+
+    er2 = ds[limit_p];                                  /* 2E98A..2E98C */
+    er12 = (uint16_t)(acc >> 8);                        /* 2E98E */
+    acc = (uint16_t)(font + er12);                      /* 2E992..2E996 */
+    if ((int16_t)er2 < (int16_t)acc)                    /* 2E99A bc ges */
+        return (uint16_t)(acc & 0xFF00u);               /* 2E99C..2E99E */
+    ds_put(ds, limit_p, (uint8_t)(ds[limit_p] - font));  /* 2E9A2..2E9A6 */
+
+l_090:
+    ds_put(ds, row_p, 1);                               /* 2E9AC */
+    r5 = font;                                          /* 2E9AE */
+    if (ds[0xD111] == 2)                                /* 2E9B4..2E9B8 */
+        goto l_12C;
+
+    flag = 0;                                           /* 2E9BC..2E9BE */
+    if (ds[0xD15A] == 0) {                              /* 2E9C0 */
+        f2 = (uint8_t)(font + 1);                       /* 2E9C6..2E9CA */
+        f1 = (uint8_t)(f2 + font);                      /* 2E9CC..2E9D0 */
+        acc = f2;                                       /* 2E9D2 mov r1, 0 */
+        er2 = draw_ld16(ds, pos);                       /* 2E9D4 */
+        if ((int16_t)er2 <= (int16_t)acc)               /* 2E9D8 bc les */
+            goto l_0E0;
+
+        er2 = f1;                                       /* 2E9DA..2E9DC */
+        acc = draw_ld16(ds, pos);                       /* 2E9DE */
+        if ((int16_t)acc >= (int16_t)er2)               /* 2E9E2 bc ges */
+            goto l_0F4;
+        acc = (uint16_t)(acc + 63);                     /* 2E9E4 */
+        acc = (uint16_t)(acc - er6);                    /* 2E9E6..2E9E8 */
+        er2 = (uint16_t)(font + font);                  /* 2E9EA..2E9EC */
+        if ((int16_t)acc >= (int16_t)er2)               /* 2E9F0 bc ges */
+            goto l_0F4;
+        flag = 1;                                       /* 2E9F2..2E9F4 */
+        goto l_0F4;
+
+    l_0E0:
+        acc = er2;                                      /* 2E9F8 */
+        if ((int16_t)er2 <= 1)                          /* 2E9FA..2E9FE */
+            goto l_0F4;
+        er2 = f2;                                       /* 2EA00..2EA02 */
+        if ((int16_t)acc >= (int16_t)er2)               /* 2EA04..2EA06 */
+            goto l_0F4;
+        flag = 1;                                       /* 2EA08..2EA0A */
+    }
+
+l_0F4:
+    if (flag == 0)                                      /* 2EA0C..2EA0E */
+        goto l_12C;
+
+    acc = draw_ld16(ds, pos);                           /* 2EA10 */
+    acc = (uint16_t)(acc - 1);                          /* 2EA12 */
+    r5 = (uint8_t)acc;                                  /* 2EA16 */
+    er2 = (uint16_t)(acc & 0x00FFu);                    /* 2EA14..2EA1C */
+    acc = (uint16_t)(er2 - font);                       /* 2EA1C..2EA1E */
+    er6 = acc;                                          /* 2EA22 */
+    er2 = (uint16_t)(draw_ld16(ds, cell) - acc);        /* 2EA24..2EA26 */
+    draw_st16(ds, cell, er2);                           /* 2EA2A */
+    if (ds[limit_p] != 0)                               /* 2EA30 bc le */
+        ds_put(ds, limit_p, (uint8_t)(ds[limit_p] - (uint8_t)er6));
+    if ((er6 & 0x8000u) != 0)                           /* 2EA3A..2EA3C bc ps */
+        ds_put(ds, row_p, 0);                           /* 2EA3E..2EA42 */
+
+l_12C:
+    acc = draw_ld16(ds, pos);                           /* 2EA44..2EA46 */
+    acc = (uint16_t)(acc - r5);                         /* 2EA48..2EA4A */
+    draw_st16(ds, pos, acc);                            /* 2EA4C */
+    if ((acc & 0x8000u) != 0) {                         /* 2EA4E..2EA50 */
+        acc = (uint16_t)(font + draw_ld16(ds, pos));    /* 2EA52..2EA58 */
+        draw_st16(ds, pos, acc);                        /* 2EA5A */
+    }
+
+    /* 2EA5C mov r0, r5 - only the low half changes, and the scroll returns the
+     * memzero destination, whose high byte is what r1 ends up holding. */
+    acc = screen_scroll_rows_up(ds, (uint16_t)((acc & 0xFF00u) | r5), 0);
+    return (uint16_t)((acc & 0xFF00u) | 1u);            /* 2EA62 */
+
+tail:
+    draw_st16(ds, cell, er6);                           /* 2EA68 */
+    return (uint16_t)((acc & 0xFF00u) | 1u);            /* 2EA6A */
+}

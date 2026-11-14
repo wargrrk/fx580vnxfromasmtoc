@@ -42,6 +42,12 @@ static uint16_t a_draw_line(uint8_t *ds, const uint16_t *e, const uint16_t *s)
     return 0;
 }
 
+static uint16_t a_glyph_row_insert(uint8_t *ds, const uint16_t *e,
+                                   const uint16_t *s)
+{
+    return glyph_row_insert(ds, e[0], e[1], s);
+}
+
 void test_draw(void)
 {
     BATCH(
@@ -57,5 +63,6 @@ void test_draw(void)
         {"box_frame", 0x08D00, "ww!", a_box_frame, 0},
         {"box_round_rect", 0x08DC0, "ww!", a_box_round_rect, 0},
         {"draw_line", 0x08E62, "ww!", a_draw_line, 0},
+        {"glyph_row_insert", 0x2E918, "pp|ppw", a_glyph_row_insert, 0},
     );
 }

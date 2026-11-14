@@ -35,7 +35,7 @@ extern int rom_no_return;
 
 typedef struct {
     uint16_t er[8];      /* er0, er2, ... er14 */
-    uint16_t stk[4];     /* stack arguments, [sp], [sp+2], ... */
+    uint16_t stk[8];     /* stack arguments, [sp], [sp+2], ... */
     int nstk;
     uint16_t sp;         /* 0 = default (STACK_TOP), else custom */
 } Args;
