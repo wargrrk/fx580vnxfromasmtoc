@@ -37,6 +37,9 @@ uint16_t editor_special_to_ascii(uint16_t code);
 /* 0x2035C - map an editor byte to its compact character class. */
 uint8_t editor_classify_code(uint8_t code);
 
+/* 0x24E24 - classify the byte behind a pointer, or 5 when it has no glyph. */
+uint16_t byte_class_or_5(uint8_t *ds, uint16_t ptr);
+
 /* 0x0E7A8 - encode an editor character index into its internal token. */
 uint16_t encode_editor_character(uint8_t *ds, uint16_t output, uint8_t index);
 

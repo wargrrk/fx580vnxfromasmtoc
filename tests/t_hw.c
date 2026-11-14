@@ -71,6 +71,92 @@ static void test_pop_pc_return(void)
     }
 }
 
+/* 0x0BEFA and 0x0CA34 test the sixteen-bit field at 0xD10E, so sweep the four
+ * codes they name plus neighbours on both sides. */
+static void test_d10e_token_tests(void)
+{
+    static const uint16_t words[] = {0xFC1C, 0xFC1D, 0xFC1E, 0xFC1F, 0xFC20,
+                                     0xFC21, 0xFC22, 0xFC23, 0xFC24, 0x0000,
+                                     0xFFFF};
+
+    for (size_t w = 0; w < sizeof(words) / sizeof(words[0]); w++) {
+        for (unsigned arg = 0; arg < 2; arg++) {
+            uint16_t a = arg ? 0x5A00 : 0x0000;
+
+            random_image(0xF8000u + (unsigned)(w * 4 + arg));
+            image[0xD10E] = (uint8_t)(words[w] & 0xFF);
+            image[0xD10F] = (uint8_t)(words[w] >> 8);
+            Args args = {.er = {a, 0}, .nstk = 0};
+
+            uint16_t rom_ret = run_rom(0x0BEFA, &args,
+                                       "token_at_d10e_is_1f_23");
+            begin_c();
+            check_ret("token_at_d10e_is_1f_23", rom_ret,
+                      token_at_d10e_is_1f_23(after_c, a));
+            check_mem_all("token_at_d10e_is_1f_23");
+
+            rom_ret = run_rom(0x0CA34, &args, "token_at_d10e_is_1e_22");
+            begin_c();
+            check_ret("token_at_d10e_is_1e_22", rom_ret,
+                      token_at_d10e_is_1e_22(after_c, a));
+            check_mem_all("token_at_d10e_is_1e_22");
+        }
+    }
+}
+
+/* 0x2AE00 / 0x2B226 name modes 12 and 74, so walk those two plus the values
+ * either side of them. */
+static void test_more_mode_predicates(void)
+{
+    static const uint8_t modes[] = {0, 11, 12, 13, 73, 74, 75, 255};
+    static const uint8_t subs[] = {0, 1, 2};
+
+    for (size_t m = 0; m < sizeof(modes) / sizeof(modes[0]); m++) {
+        for (size_t s = 0; s < sizeof(subs) / sizeof(subs[0]); s++) {
+            for (unsigned arg = 0; arg < 2; arg++) {
+                uint16_t a = arg ? 0x7700 : 0x0000;
+
+                random_image(0xF9000u + (unsigned)(m * 8 + s + arg));
+                image[0xD111] = modes[m];
+                image[0xD114] = subs[s];
+                Args args = {.er = {a, 0}, .nstk = 0};
+
+                uint16_t rom_ret = run_rom(0x2AE00, &args, "mode_is_12_1");
+                begin_c();
+                check_ret("mode_is_12_1", rom_ret, mode_is_12_1(after_c, a));
+                check_mem_all("mode_is_12_1");
+
+                rom_ret = run_rom(0x2B226, &args, "mode_is_74_1");
+                begin_c();
+                check_ret("mode_is_74_1", rom_ret, mode_is_74_1(after_c, a));
+                check_mem_all("mode_is_74_1");
+            }
+        }
+    }
+}
+
+/* 0x2F6FC reads one byte through a pointer and keeps its high nibble. */
+static void test_nibble_hi_is_2_or_8(void)
+{
+    static const uint16_t ptrs[] = {0xD000, 0xD001, 0xDFF0};
+    static const uint8_t bytes[] = {0x00, 0x1F, 0x20, 0x2F, 0x30, 0x7F, 0x80,
+                                    0x8F, 0x90, 0xFF};
+
+    for (size_t b = 0; b < sizeof(bytes) / sizeof(bytes[0]); b++) {
+        for (size_t a = 0; a < sizeof(ptrs) / sizeof(ptrs[0]); a++) {
+            random_image(0xFA000u + (unsigned)(b * 8 + a));
+            image[ptrs[a]] = bytes[b];
+            Args args = {.er = {ptrs[a], 0}, .nstk = 0};
+            uint16_t rom_ret = run_rom(0x2F6FC, &args,
+                                       "nibble_hi_is_2_or_8");
+            begin_c();
+            check_ret("nibble_hi_is_2_or_8", rom_ret,
+                      nibble_hi_is_2_or_8(after_c, ptrs[a]));
+            check_mem_all("nibble_hi_is_2_or_8");
+        }
+    }
+}
+
 /* 0x0AF1A, 0x0C34E, 0x2AF28 and 0x2D4D8 are byte predicates that answer in r0
  * and leave r1 alone, so each one is run over the interesting values of its
  * state byte and a high half that has to survive. */
@@ -124,6 +210,9 @@ static void test_state_predicates(void)
 void test_hw(void)
 {
     test_state_predicates();
+    test_d10e_token_tests();
+    test_more_mode_predicates();
+    test_nibble_hi_is_2_or_8();
 
     BATCH(
         {"set_flag_0F810", 0x099FC, "", a_set_flag_0F810, 0},

@@ -185,6 +185,19 @@ uint16_t editor_special_to_ascii(uint16_t code)
     }
 }
 
+/* 0x24E24 - read the byte behind a pointer, classify it, and either answer 5
+ * (class 15 and above: no glyph) or look the class up in the byte table at
+ * 0x3D72.  The table branch sets r1 to zero first, so its answer is a clean
+ * sixteen-bit value; the class-15 branch only writes r0. */
+uint16_t byte_class_or_5(uint8_t *ds, uint16_t ptr)
+{
+    uint8_t cls = editor_classify_code(ds[ptr]);
+
+    if (cls >= 15)
+        return 5;
+    return ds[0x3D72 + cls];
+}
+
 uint8_t editor_classify_code(uint8_t code)
 {
     if (code == 24)

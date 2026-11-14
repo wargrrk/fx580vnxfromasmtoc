@@ -200,8 +200,31 @@ static void test_clamp_editor_offset(void)
     }
 }
 
+/* 0x24E24 classifies one editor byte and looks the class up in a byte table.
+ * The class-15 branch answers 5 in r0 only (r1 is whatever 0x2035C left), so
+ * that half is compared on the low byte. */
+static void test_byte_class_or_5(void)
+{
+    static const uint8_t bytes[] = {0, 1, 2, 0x0A, 0x20, 0x2B, 0x30, 0x39,
+                                    0x3D, 0x41, 0x7E, 0x87, 0xFC, 0xFF};
+
+    for (size_t b = 0; b < sizeof(bytes) / sizeof(bytes[0]); b++) {
+        random_image(0xFB000u + (unsigned)b);
+        image[0xD000] = bytes[b];
+        Args args = {.er = {0xD000, 0}, .nstk = 0};
+        uint16_t rom_ret = run_rom(0x24E24, &args, "byte_class_or_5");
+        begin_c();
+        uint16_t c_ret = byte_class_or_5(after_c, 0xD000);
+        check_ret("byte_class_or_5", (uint16_t)(rom_ret & 0xFF),
+                  (uint16_t)(c_ret & 0xFF));
+        check_mem_all("byte_class_or_5");
+    }
+}
+
 void test_edit(void)
 {
+    test_byte_class_or_5();
+
     test_prev_unit_off();
     test_prev_unit_off_open();
     test_encode_editor_token();

@@ -435,6 +435,55 @@ uint16_t clear_call_registers(uint8_t *ds)
     return 0;
 }
 
+/* 0x0BEFA - is the sixteen-bit field at 0xD10E one of the two token codes
+ * 0xFC1F and 0xFC23?  `l er0` loads the pair and each test is the same
+ * `cmp/cm pc` chain, so both halves take part. */
+uint16_t token_at_d10e_is_1f_23(uint8_t *ds, uint16_t arg)
+{
+    (void)arg;
+    uint16_t v = (uint16_t)(ds[0xD10E] | ((uint16_t)ds[0xD10F] << 8));
+
+    /* `l er0` loads both halves, so the surviving high byte is the field's own,
+     * not the caller's r1 */
+    return (uint16_t)((v & 0xFF00u) | (uint16_t)(v == 0xFC1F || v == 0xFC23));
+}
+
+/* 0x0CA34 - the same test one code lower on each side, 0xFC1E and 0xFC22. */
+uint16_t token_at_d10e_is_1e_22(uint8_t *ds, uint16_t arg)
+{
+    (void)arg;
+    uint16_t v = (uint16_t)(ds[0xD10E] | ((uint16_t)ds[0xD10F] << 8));
+
+    return (uint16_t)((v & 0xFF00u) | (uint16_t)(v == 0xFC1E || v == 0xFC22));
+}
+
+/* 0x2AE00 - mode 12 with sub-state 1. */
+uint16_t mode_is_12_1(uint8_t *ds, uint16_t arg)
+{
+    uint8_t flag = (uint8_t)(ds[0xD111] == 12 && ds[0xD114] == 1);
+
+    return (uint16_t)((arg & 0xFF00u) | flag);
+}
+
+/* 0x2B226 - mode 74 (0x4A) with sub-state 1. */
+uint16_t mode_is_74_1(uint8_t *ds, uint16_t arg)
+{
+    uint8_t flag = (uint8_t)(ds[0xD111] == 74 && ds[0xD114] == 1);
+
+    return (uint16_t)((arg & 0xFF00u) | flag);
+}
+
+/* 0x2F6FC - the upper nibble of the byte behind a pointer is a box class: 2
+ * and 8 are the two that draw a frame.  `srl r0, 4` on a byte register works
+ * here because only r0 is shifted and the bits leaving it are dropped.  Again
+ * only r0 is written, so the high half of the pointer comes back unchanged. */
+uint16_t nibble_hi_is_2_or_8(uint8_t *ds, uint16_t ptr)
+{
+    uint8_t kind = (uint8_t)(ds[ptr] >> 4);
+
+    return (uint16_t)((ptr & 0xFF00u) | (uint16_t)(kind == 2 || kind == 8));
+}
+
 /* 0x0AF1A - the "nothing chosen yet" test: er0 is either 35 or zero.  The first
  * three instructions are a plain sixteen-bit compare with 35 (`cmp r0, 35 /
  * cmpc r1, 0`, chained Z), and the failing branch lands on `mov er0, er0`,

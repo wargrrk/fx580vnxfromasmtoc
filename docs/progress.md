@@ -52,8 +52,8 @@ on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 229 / 761 (30.1%) |
-| instructions | 4621 / 32749 (14.1%) |
+| routines | 235 / 761 (30.9%) |
+| instructions | 4683 / 32749 (14.3%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
@@ -76,6 +76,7 @@ the core manual (`resource/nX-U8100 Core Instruction Manual.txt`) or against
 | multi-byte `l`/`st` | the effective address is forced even: address bit 0 is ignored, so an odd pointer rounds *down* | §1.3.5.3 "Word Boundaries" |
 | register groups | `erN` = 2 bytes (`rN..rN+1`), `xrN` = 4 (`rN..rN+3`), `qrN` = 8 (`rN..rN+7`) - the number is the *first* register, so `push qr8` saves r8..r15 and `push xr0` saves **r0..r3** | `tools/nx8.py`, instruction formats |
 | `push xr0` / `pop xr0` as a save | restoring r0..r3 throws away the callee's `er0` answer. `0x17B16` (`mov er0,0` / `bl f_0AC60` / `mov er14,er0` / `pop xr0`) therefore answers *in er14 only* and returns the caller's er0 untouched | `0x17B16` diff-test, three wrong translations before the register image showed er14 right and er0 zero |
+| which high half a predicate returns | the `mov r0, <flag>` idiom writes **only r0**, so everything that already held r1 survives: for a routine that starts with `l er0, [cell]` that is the cell's own high byte (`0x0BEFA`), and for one entered with a pointer in er0 it is the pointer's (`0x2F6FC`). Reading "returns the caller's r1" as a general rule fails 42 checks |
 | `mov erN, erN` | not a no-op: the ROM uses it as a **sixteen-bit zero test** to set Z. `0x0AF1A` looks like "is er0 = 35" from the `cmp r0, 35 / cmpc r1, 0` prologue, but its failing branch jumps into `mov er0, er0 / bc eq` and answers 1 for er0 = 0 as well - a full sixteen-bit sweep of the entry is the only way to see the second value |
 | `SRLC Rn` vs `SLLC Rn` neighbour | `SLLC` takes its carry in from `r(N-1)`, `SRLC` from `r(N+1)` - opposite directions. So `0x1BB4E`'s `sllc r7,4 … sll r0,4` walk r0..r7 as one big-endian 64-bit value shifted left four, and `0x1BB28`'s `srlc r0,4 … srl r7,4` the same right (same for the nine-byte r1..r9 pair, `0x1BB3A`/`0x1BB60`). Consequence: a run of equal bytes is a poor test vector, because right-shifting it twice maps back onto itself |
 | return value of a register-only routine | `rt` writes nothing, so er0 comes back holding whatever the body left in r0/r1 - for the shift runs that is the *shifted* pair, not the caller's. Returning 0 "because it writes no result" is wrong |
