@@ -27,6 +27,11 @@
 extern uint8_t image[IMG_SIZE];
 extern uint8_t after_rom[IMG_SIZE];
 extern uint8_t after_c[IMG_SIZE];
+/* The register file as it stood when the ROM returned: r0..r15, one byte each,
+ * indexed the way the core numbers them (er0 is r0/r1).  A few routines put
+ * their result in a register that is not er0 - 0x143D6 answers in r5 and r2
+ * alone - and without this image the differential test cannot see them at all. */
+extern uint8_t after_rom_regs[16];
 extern int checks;
 extern int failures;
 /* Cases whose ROM run never returned; reported separately so that skipping
@@ -55,6 +60,11 @@ uint16_t run_rom(uint32_t addr, const Args *a, const char *what);
 uint16_t run_rom_ex(uint32_t addr, const Args *a, const char *what,
                     int *returned);
 void check_ret(const char *what, uint16_t rom_ret, uint16_t c_ret);
+/* Compare the register bytes selected by `mask` (bit N = rN) against the
+ * register file the ROM left behind.  `mine` is a 16-byte image the caller
+ * builds: start from the registers it set up, then overwrite whatever the C
+ * body is supposed to have produced. */
+void check_regs(const char *what, const uint8_t *mine, uint16_t mask);
 void check_mem(const char *what, uint32_t from, uint32_t to);
 /* Every byte of the data space a store can latch, except the stack window. */
 void check_mem_all(const char *what);

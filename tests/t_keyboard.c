@@ -28,6 +28,49 @@ static void test_timer_delay(void)
     }
 }
 
+static void test_timer_delay_once(void)
+{
+    static const uint16_t args[] = {0, 1, 0x1234, 0xFF00, 0xFFFF};
+
+    for (size_t i = 0; i < sizeof(args) / sizeof(args[0]); i++) {
+        random_image(0xA3000u + (uint32_t)i);
+        /* the one-tick wait reuses timer_delay, whose SFR reads decide the
+         * whole sequence, so all three inputs are swept */
+        image[0xF00A] &= (uint8_t)~0x02;
+        image[0xF042] = (uint8_t)(i & 1 ? 1 : 0);
+        Args a = {.er = {args[i], 0}};
+        uint16_t rom_ret = run_rom(0x23C94, &a, "timer_delay_once");
+        begin_c();
+        uint16_t c_ret = timer_delay_once(after_c, args[i]);
+        check_ret("timer_delay_once", rom_ret, c_ret);
+        check_mem("timer_delay_once", 0xF000, 0xF060);
+    }
+}
+
+/* 0x29B58 switches the panel on, waits, and switches it off again; the delay
+ * is the interesting part because its SFR reads decide the whole sequence. */
+static void test_display_pulse(void)
+{
+    static const uint8_t filter[] = {0, 1};
+    static const uint8_t flag[] = {0, 2};
+
+    for (size_t i = 0; i < 2; i++) {
+        random_image(0xA4000u + (uint32_t)i);
+        image[0xF00A] &= (uint8_t)~0x02;
+        image[0xF00A] |= flag[i];
+        image[0xF042] = filter[i];
+        Args a = {.er = {0x0500, 0}};
+        uint16_t rom_ret = run_rom(0x29B58, &a, "display_pulse");
+        begin_c();
+        uint16_t c_ret = display_pulse(after_c, 0x0500);
+        /* only the low half is modelled: r1 comes back from the delay
+         * routine, not from here */
+        check_ret("display_pulse", (uint16_t)(rom_ret & 0xFF),
+                  (uint16_t)(c_ret & 0xFF));
+        check_mem("display_pulse", 0xF000, 0xF060);
+    }
+}
+
 static void test_check_any_key(void)
 {
     static const uint8_t masks[] = {0x00, 0x01, 0x7F, 0x80, 0xF0, 0xFF};
@@ -248,6 +291,8 @@ static void test_hw_bringup(void)
 void test_keyboard(void)
 {
     test_timer_delay();
+    test_timer_delay_once();
+    test_display_pulse();
     test_check_any_key();
     test_key_helpers();
     test_keycode_cvt();

@@ -368,3 +368,113 @@ uint16_t table_byte_10b(uint8_t *ds, uint16_t value)
      * record address survives into the result (0xDE11, not 0x0011). */
     return (uint16_t)((addr & 0xFF00u) | ds[addr]);
 }
+
+/* 0x0E1D2 - swap the two nibbles of the state byte at 0xD118.  The `mov r1,
+ * r0` between the shift and the merge (not `mov r1, 0`) is what puts the old
+ * high nibble in the returned word's high half, so the result is the moved
+ * nibble above and the new state byte below. */
+uint16_t state_swap_nibbles(uint8_t *ds)
+{
+    uint8_t old = ds[0xD118];
+    uint8_t high = (uint8_t)(old >> 4);
+    uint8_t merged = (uint8_t)((old & 0xF0u) | high);
+
+    ds[0xD118] = merged;
+    return (uint16_t)(((uint16_t)high << 8) | merged);
+}
+
+/* 0x2084C - fold the argument's low byte into the state byte at 0xD118, keep
+ * that byte's high nibble, and clear 0xD148.  The final `mov r0, 0` only zeroes
+ * the low half of er0, so the returned word is the *kept* high nibble shifted
+ * up (0xF000 for a 0xF1 state byte), not 0. */
+uint16_t state_merge_high(uint8_t *ds, uint16_t value)
+{
+    uint8_t old = ds[0xD118];
+    uint8_t kept = (uint8_t)(old & 0xF0u);
+
+    ds[0xD118] = (uint8_t)((uint8_t)value | kept);
+    ds[0xD148] = 0;
+    return (uint16_t)((uint16_t)kept << 8);
+}
+
+/* 0x20DD2 - drop a latched shift/repeat bit from the modifier byte at 0xD110:
+ * `add r0, 128` wraps a set bit 7 away and `rb r0, 3` clears bit 3.  A byte
+ * whose bit 7 is already clear is left alone and not even written back. */
+uint16_t modifier_clear_bit7(uint8_t *ds, uint16_t arg)
+{
+    uint8_t value = ds[0xD110];
+
+    if (value & 0x80u) {
+        value = (uint8_t)(value + 0x80u);
+        value = (uint8_t)(value & (uint8_t)~0x08u);
+        ds[0xD110] = value;
+    }
+    return (uint16_t)((arg & 0xFF00u) | value);
+}
+
+/* 0x206FA - the separator glyph for the current display state: 0x2E ('.')
+ * while either the extended-mode byte at 0xD14E or the flag at 0xD11C is set,
+ * 0x2C (',') when neither is.  r1 keeps the byte that decided it, so the
+ * returned *high* half is that byte (0x0046 vs 0x0146 for 0xD14E = 1). */
+uint16_t dot_or_prime(uint8_t *ds)
+{
+    uint8_t high = ds[0xD14E];
+
+    if (high == 0)
+        high = ds[0xD11C];
+    return (uint16_t)(((uint16_t)high << 8) | (high != 0 ? 0x2Eu : 0x2Cu));
+}
+
+/* 0x180D0 - the "nothing to report" prologue: er0, er2, er4 and er6 come back
+ * zero and the r8/r9 pair is loaded with 0 and 1.  Only er0 is observable
+ * through the calling convention - the rest are register-only side effects the
+ * differential test cannot see - so the C body only has to answer 0. */
+uint16_t clear_call_registers(uint8_t *ds)
+{
+    (void)ds;
+    return 0;
+}
+
+/* 0x0A146 - display enable: the byte at 0xF815 becomes 1 when the argument is
+ * non-zero and 0 when it is, and er0 answers with the flag in its low half.  It
+ * is the label inside 0x0A128's body (`.l_01E`), reached by `bl` from the
+ * routines that switch the panel on and off around a delay.
+ *
+ * `cmp r0, 0` is an *eight-bit* compare, so only the low half of the argument
+ * decides - 0x0100 switches the display off, not on. */
+uint16_t display_enable_set(uint8_t *ds, uint16_t arg)
+{
+    uint8_t on = (uint8_t)((uint8_t)arg != 0);
+
+    ds[0xF815] = on;
+    return (uint16_t)((arg & 0xFF00u) | on);
+}
+
+/* 0x1844E - "is the byte at offset 8 of this record above 14?".  The record is
+ * addressed through 0x18940, and the answer goes into the low half of er0 while
+ * the high half keeps the top byte of the record pointer. */
+uint16_t record_tail_over_14(uint8_t *ds, uint16_t value)
+{
+    uint16_t record = record_10b_0DA40(ds, value);
+    uint8_t tail = ds[(uint16_t)(record + 8)];
+
+    return (uint16_t)((record & 0xFF00u) | (tail > 14 ? 1u : 0u));
+}
+
+/* 0x0CB0E - a body that is nothing but `rt`.  Six call sites reach it through
+ * `bl`, so it is a real entry and not a hole: it does nothing and hands the
+ * caller's er0 straight back, which is exactly what the identity does. */
+uint16_t no_op_0CB0E(uint8_t *ds, uint16_t arg)
+{
+    (void)ds;
+    return arg;
+}
+
+/* 0x1FFFE - the same thing written as `pop pc`.  Five `bl` sites call it as a
+ * plain "do nothing and return" helper, and since `bl` pushes the return
+ * address the pop goes back to the caller. */
+uint16_t return_immediately_1FFFE(uint8_t *ds, uint16_t arg)
+{
+    (void)ds;
+    return arg;
+}

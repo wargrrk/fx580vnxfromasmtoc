@@ -43,6 +43,18 @@ uint16_t prev_unit_off(uint8_t *ds, uint16_t lo, uint16_t probe)
     return r12;
 }
 
+/* 0x17B16 - the same step with the lower bound cleared: `mov er0, 0` then
+ * `bl f_0AC60` with the caller's er14 as the probe.  The answer is left in
+ * **er14** (`mov er14, er0`); er0 is then thrown away by `pop xr0`, which
+ * restores r0..r3, so the routine comes back with the caller's er0 intact. */
+uint16_t prev_unit_off_open(uint8_t *ds, uint16_t arg, uint16_t probe,
+                            uint16_t *er14_out)
+{
+    if (er14_out)
+        *er14_out = prev_unit_off(ds, 0, probe);
+    return arg;
+}
+
 uint16_t encode_editor_token(uint8_t *ds, uint8_t value, uint16_t output)
 {
     uint8_t mode = ds[0xD117];

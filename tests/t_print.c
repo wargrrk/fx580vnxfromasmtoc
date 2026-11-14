@@ -243,6 +243,41 @@ static void test_char_print(void)
     }
 }
 
+/* 0x0904C is char_print entered one instruction after its prologue, with r3
+ * cleared.  The garbage marker passed here must make no difference at all. */
+static void test_char_print_1byte(void)
+{
+    static const uint8_t fonts[] = {14, 10, 8};
+    static const uint8_t chars[] = {16, 17, 32, 48, 65, 91, 200, 255};
+    static const uint8_t xs[] = {0, 1, 5, 7, 11, 191, 192, 255};
+    static const uint8_t ys[] = {0, 1, 5, 40, 63, 64, 200, 255};
+    static const uint8_t markers[] = {0x11, 0x7F, 0xF0, 0xFF};   /* ignored */
+
+    for (size_t f = 0; f < 3; f++) {
+        for (size_t m = 0; m < 4; m++) {
+            for (size_t x = 0; x < sizeof(xs); x++) {
+                for (size_t y = 0; y < sizeof(ys); y++) {
+                    uint16_t xy = (uint16_t)((ys[y] << 8) | xs[x]);
+                    uint8_t ch = chars[(x + y + m) % 8];
+
+                    random_image(0xB1000u + (uint32_t)(f * 1000 + m * 100 +
+                                                        x * 10 + y));
+                    image[0xD137] = fonts[f];
+                    image[0xD138] = (uint8_t)((x + y) % 6);
+                    image[0xD139] = (uint8_t)((x + y) & 1);
+                    Args args = {
+                        .er = {xy, (uint16_t)(((uint16_t)markers[m] << 8) |
+                                             ch)}};
+                    run_rom(0x0904C, &args, "char_print_1byte");
+                    begin_c();
+                    char_print_1byte(after_c, xy, ch);
+                    check_mem("char_print_1byte", 0xDDD4, 0xE9D4);
+                }
+            }
+        }
+    }
+}
+
 static void one_line(uint32_t seed, uint16_t xy, const uint8_t *chars, size_t n,
                      uint8_t font, uint8_t cur, uint8_t mode, uint8_t flag, uint8_t calc_mode)
 {
@@ -341,6 +376,51 @@ static void test_line_print(void)
              buf, n + 1, fonts[next_rnd() % 3],
              (uint8_t)(next_rnd() & 1), (uint8_t)(next_rnd() % 6),
              (uint8_t)(next_rnd() & 1), (uint8_t)(next_rnd() % 3));
+    }
+}
+
+/* 0x08F7C is line_print entered one instruction earlier, with r0 cleared and
+ * r1 left alone.  The `xy` handed to it therefore has a bogus x (the test
+ * passes a deliberately non-zero one) and must come out as x = 0. */
+static void test_line_print_col0(void)
+{
+    static const uint8_t sample[] = {48, 49, 50, 51, 0};
+    static const uint8_t escape[] = {4, 'A', 'B', 4, 'C', 0};
+    static const uint16_t ys[] = {0, 1, 40, 63, 200, 255};
+    static const uint16_t xs[] = {0, 1, 90, 191, 200, 255};
+
+    for (size_t xi = 0; xi < sizeof(xs) / sizeof(xs[0]); xi++) {
+        for (size_t yi = 0; yi < sizeof(ys) / sizeof(ys[0]); yi++) {
+            for (int which = 0; which < 2; which++) {
+                const uint8_t *s = which ? escape : sample;
+
+                random_image(0xA6000u + (uint32_t)(xi * 20 + yi * 2 + which));
+                memset(image + 0xD400, 0, 0x40);
+                memcpy(image + 0xD400, s, which ? 6 : 5);
+                image[0xD137] = (uint8_t)((xi + yi) & 1 ? 14 : 10);
+                image[0xD138] = (uint8_t)((xi + yi) % 6);
+                image[0xD139] = (uint8_t)(yi & 1);
+                image[0xD11C] = (uint8_t)(xi & 1);
+                image[0xD111] = (uint8_t)(yi % 3);
+
+                Args args = {
+                    .er = {(uint16_t)((ys[yi] << 8) | xs[xi]), 0xD400}};
+                uint16_t rom_ret = run_rom(0x08F7C, &args, "line_print.col_0");
+                uint16_t rom_str = nx8_er(harness_machine(), 2);
+                begin_c();
+                uint16_t str_out = 0;
+                uint16_t c_ret = line_print_col0(
+                    after_c, (uint16_t)((ys[yi] << 8) | xs[xi]), 0xD400,
+                    &str_out);
+                /* Only the low half of the answer is modelled: line_print's
+                 * own body leaves an internal byte in r1, which is why the
+                 * 0x08F7E test compares `rom_ret & 0xFF` too. */
+                check_ret("line_print.col_0", (uint16_t)(rom_ret & 0xFF),
+                          (uint16_t)(c_ret & 0xFF));
+                check_ret("line_print.col_0 str", rom_str, str_out);
+                check_mem("line_print.col_0 screen", 0xDDD4, 0xE9D4);
+            }
+        }
     }
 }
 
@@ -478,7 +558,9 @@ void test_print(void)
     test_screen_addr();
     test_screen_pixel();
     test_char_print();
+    test_char_print_1byte();
     test_line_print();
+    test_line_print_col0();
     test_print_mode_label();
     test_get_string_constant();
     test_copy_string_constant();

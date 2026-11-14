@@ -9,6 +9,8 @@
  */
 #include "keyboard.h"
 
+#include "hw.h"
+
 #include "../src/runtime.h"
 
 static void wr16(uint8_t *ds, uint16_t a, uint16_t v)
@@ -45,6 +47,29 @@ void timer_delay(uint8_t *ds, uint16_t interval)
     ds[SFR_TIMER_CONTROL] = 1;
     ds[SFR_0F014] = 0;
     ds[SFR_0F015] = 0;
+}
+
+/* 0x29B58 - blink the panel once: switch the display on, wait 1600 timer ticks
+ * (`mov r0, 64 / mov r1, 6` is er0 = 0x0640), switch it off again.  The two
+ * toggles go through the label at 0x0A146 inside 0x0A128's body. */
+uint16_t display_pulse(uint8_t *ds, uint16_t arg)
+{
+    (void)arg;
+    (void)display_enable_set(ds, 1);
+    timer_delay(ds, 0x0640);
+    (void)display_enable_set(ds, 0);
+    /* er0 comes back from the delay, not from this routine: the last toggle
+     * leaves a zero in r0 and the delay has already overwritten r1. */
+    return 0;
+}
+
+/* 0x23C94 - `mov r0, 1 / mov r1, 0 / bl delay`, wrapped in `push xr0` so the
+ * caller's r4..r7 survive.  The one-tick wait is all it does; er0 comes back
+ * untouched. */
+uint16_t timer_delay_once(uint8_t *ds, uint16_t arg)
+{
+    timer_delay(ds, 1);
+    return arg;
 }
 
 void key_scan_end(uint8_t *ds)

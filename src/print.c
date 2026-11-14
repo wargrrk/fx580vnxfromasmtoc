@@ -251,6 +251,16 @@ void char_print(uint8_t *ds, uint16_t xy, uint8_t ch, uint8_t marker)
     }
 }
 
+/* 0x0904C - char_print with the marker forced to 0.  The entry is `push lr /
+ * push xr4 / push qr8 / mov r3, 0` and then a branch into the body at 0x0905C,
+ * which is exactly where char_print's own prologue ends; the only difference
+ * between the two entry points is the byte in r3.  char_print has no observable
+ * return value (its test compares the screen only), so neither does this. */
+void char_print_1byte(uint8_t *ds, uint16_t xy, uint8_t ch)
+{
+    char_print(ds, xy, ch, 0);
+}
+
 /*
  * 0x08FF6 - control character 1 inside a string.  Draws one cell (in "set
  * pixels" mode) just to the left of the cursor and advances the line by a
@@ -324,6 +334,19 @@ uint8_t line_print(uint8_t *ds, uint16_t xy, uint16_t str, uint16_t *str_out)
     if (str_out)
         *str_out = str;
     return count;
+}
+
+/* 0x08F7C - line_print entered one instruction earlier, with `mov r0, 0` in
+ * front of the body.  Only the low half of er0 is cleared, so the caller's r1
+ * is still the y coordinate, the x coordinate becomes 0, and the high half of
+ * the returned word is whatever r1 held on the way in. */
+uint16_t line_print_col0(uint8_t *ds, uint16_t arg, uint16_t str,
+                         uint16_t *str_out)
+{
+    uint16_t xy = (uint16_t)(arg & 0xFF00u);
+
+    return (uint16_t)(((uint16_t)arg & 0xFF00u) |
+                      line_print(ds, xy, str, str_out));
 }
 
 uint8_t print_mode_label(uint8_t *ds)

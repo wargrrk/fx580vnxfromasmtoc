@@ -136,4 +136,29 @@ uint16_t state_reset_0D116(uint8_t *ds);
 /* 0x1826E - the ten-byte record byte for this index. */
 uint16_t table_byte_10b(uint8_t *ds, uint16_t value);
 
+/* 0x0E1D2 - swap the nibbles of the state byte at 0xD118. */
+uint16_t state_swap_nibbles(uint8_t *ds);
+
+/* 0x2084C - merge the argument into the high nibble of 0xD118, clear 0xD148. */
+uint16_t state_merge_high(uint8_t *ds, uint16_t value);
+
+/* 0x20DD2 - drop bits 7 and 3 from the modifier byte at 0xD110. */
+uint16_t modifier_clear_bit7(uint8_t *ds, uint16_t arg);
+
+/* 0x206FA - ',' or '.' for the current display state. */
+uint16_t dot_or_prime(uint8_t *ds);
+
+/* 0x180D0 - zero the result registers and answer 0. */
+uint16_t clear_call_registers(uint8_t *ds);
+
+/* 0x0CB0E / 0x1FFFE - bodies that are a bare `rt` / `pop pc`. */
+uint16_t no_op_0CB0E(uint8_t *ds, uint16_t arg);
+uint16_t return_immediately_1FFFE(uint8_t *ds, uint16_t arg);
+
+/* 0x0A146 - the display enable latch at 0xF815, answered in er0's low half. */
+uint16_t display_enable_set(uint8_t *ds, uint16_t arg);
+
+/* 0x1844E - is the byte at +8 of record 0x18940(argument) above 14? */
+uint16_t record_tail_over_14(uint8_t *ds, uint16_t value);
+
 #endif

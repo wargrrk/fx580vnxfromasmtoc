@@ -105,6 +105,67 @@ uint16_t record_pair_copy(uint8_t *ds, uint16_t dst, uint16_t src);
 uint16_t table_index_scan(uint8_t *ds, uint16_t key);
 uint16_t fixup_0D10E(uint8_t *ds, uint16_t arg);
 
+/* mem.c - ten-byte record moves between 0xD000..0xD05F (0x19E54..0x19F62) */
+uint16_t record10_d046_to_d010(uint8_t *ds);
+uint16_t record10_d010_to_d046(uint8_t *ds);
+uint16_t record10_d000_to_d046(uint8_t *ds);
+uint16_t record10_d03c_to_d000(uint8_t *ds);
+uint16_t record10_d03c_to_d010(uint8_t *ds);
+uint16_t record10_d000_to_d03c(uint8_t *ds);
+uint16_t record10_d050_to_d010(uint8_t *ds);
+uint16_t record10_d000_to_d050(uint8_t *ds);
+uint16_t record10_d030_to_d010(uint8_t *ds);
+uint16_t record10_d000_to_d030(uint8_t *ds);
+uint16_t record10_d000_to_d010(uint8_t *ds);
+uint16_t record10_d010_to_d000(uint8_t *ds);
+uint16_t record10_d010_to_d050(uint8_t *ds);
+uint16_t record10_d050_to_d000(uint8_t *ds);
+uint16_t record10_d030_to_d000(uint8_t *ds);
+uint16_t record10_d010_to_d030(uint8_t *ds);
+
+/* mem.c - 0x17CA6: the same move with er12/er14 as the addresses */
+uint16_t record10_from_frame(uint8_t *ds, uint16_t dst, uint16_t src);
+
+/* mem.c - packed-digit helpers 0x1B286, 0x1C6AA, 0x1DAE2 */
+uint16_t record_high_byte_add5(uint8_t *ds);
+uint16_t digit_0D009(uint8_t *ds, uint16_t arg);
+uint16_t digit_at(uint8_t *ds, uint16_t ptr);
+
+/* mem.c - 0x13B86/0x14BCC record index math, 0x16070, 0x09E84, 0x143D6 */
+uint16_t record10_index_4x(uint8_t *ds, uint16_t base, uint16_t bias,
+                           uint16_t *offset);
+uint16_t record10_index_5x(uint8_t *ds, uint16_t base, uint16_t bias,
+                           uint16_t *offset);
+uint16_t base_plus_10x_index(uint8_t *ds, uint8_t index, uint16_t er6,
+                             uint16_t *er10_out);
+uint16_t word_at_2x_index(uint8_t *ds, uint16_t base, uint8_t index,
+                          uint8_t *r2_out);
+uint16_t nibble_pair_shifted(uint8_t *ds, uint16_t base, uint8_t *r10_out,
+                             uint8_t *r11_out);
+uint16_t record10_copy_if_present(uint8_t *ds, uint16_t dst, uint16_t src);
+uint16_t complement32(uint8_t *ds, uint16_t low, uint16_t high,
+                      uint16_t *out_high);
+uint16_t stack_bytes_used(uint8_t *ds, uint16_t sp);
+
+/* mem.c - 0x23F8A frame spill, 0x143D6 register-only shift */
+uint16_t store_reg_to_stack(uint8_t *ds, uint16_t frame, const uint8_t *regs);
+uint16_t high_nibble_into_r5(uint8_t *ds, uint16_t arg, uint8_t r4,
+                             uint8_t *r5, uint8_t *r2);
+
+/* mem.c - the 0xD000/0xD010 record handover */
+uint16_t record_reset_flag38(uint8_t *ds);
+uint16_t records_from_pointers(uint8_t *ds, uint16_t src_a, uint16_t src_b);
+uint16_t record_to_pointer(uint8_t *ds);
+uint16_t record10_er8_from_er4(uint8_t *ds, uint16_t src, uint16_t dst);
+uint16_t init_struct_30(uint8_t *ds, uint16_t frame);
+uint16_t record_kind_flag(uint8_t *ds, uint16_t arg);
+uint16_t digit_or_next_byte(uint8_t *ds, uint16_t ptr);
+uint16_t record10_index_5x_saved(uint8_t *ds, uint16_t base, uint16_t bias);
+uint16_t memcpy_200(uint8_t *ds, uint16_t dst, uint16_t src);
+uint16_t memcpy_50(uint8_t *ds, uint16_t dst, uint16_t src);
+uint16_t mode_is_75_1(uint8_t *ds, uint16_t arg);
+uint16_t mode_is_69_1(uint8_t *ds, uint16_t arg);
+
 /* mem.c - small leaf accessors of the mode/variable cluster */
 void store_0D10E(uint8_t *ds, uint16_t v);
 uint16_t mode193_value(uint8_t *ds, uint16_t arg);
@@ -114,6 +175,11 @@ void init_numeric_state(uint8_t *ds);
 /* arith.c - the arithmetic core at 0x27000-0x31000 */
 uint16_t row_count_over_limit(uint8_t *ds, uint8_t add);
 uint16_t init_descriptor_record(uint8_t *ds, uint16_t dst);
+uint16_t mul16(uint8_t *ds, uint16_t x, uint16_t y);
+
+/* 0x2406C - how far a byte has to be shifted before its top bit leaves; the
+ * count comes back in both halves of er0. */
+uint16_t shift_until_carry(uint8_t *ds, uint16_t arg);
 void draw_bar_frames(uint8_t *ds, uint8_t index);
 uint16_t pitch_from_state(uint8_t *ds, uint16_t arg);
 uint16_t key_repeat_gate(uint8_t *ds, uint16_t arg, const uint16_t *stk);

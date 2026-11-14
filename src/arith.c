@@ -67,6 +67,54 @@ uint16_t init_descriptor_record(uint8_t *ds, uint16_t dst)
     return 0x0109;
 }
 
+/* 0x1EDC8 - the sixteen-bit multiply behind the BCD engine: `er0 * er2`, low
+ * half only.
+ *
+ * The ROM builds the product from four byte products (`r0*r2` into er6, then
+ * `r0*r3` and `r1*r2` added into r7/r8 with their carries, then `r1*r3` into
+ * er2) - a full 32-bit multiply.  But every part above bit 15 ends up in r8,
+ * r9 or er2, and `pop er8` restores r8/r9 while nothing ever reads er2 again,
+ * so the caller only gets `mov er0, er6`: the low sixteen bits.  The elaborate
+ * carry chain is the compiler's 32-bit expansion of a product nobody uses.
+ * `mul` masks its first operand to eight bits first, which is harmless here
+ * because every factor is a byte of er0 or er2. */
+uint16_t mul16(uint8_t *ds, uint16_t x, uint16_t y)
+{
+    (void)ds;
+    return (uint16_t)((uint32_t)x * (uint32_t)y);
+}
+
+/* 0x2406C - the shift count behind a byte's highest set bit: shift left until a
+ * bit leaves the top, counting down from 9, and answer 16 instead when the byte
+ * was exactly 0x80 (the shift lands on zero).  Everything below 3 is returned
+ * untouched, high half included.  `bc ge` is "carry clear", so the loop runs
+ * while nothing has left the top yet, and the answer is written to r0 only -
+ * r1 already holds the same count, which is why the returned word is a doubled
+ * byte such as 0x0707. */
+uint16_t shift_until_carry(uint8_t *ds, uint16_t arg)
+{
+    uint8_t value = (uint8_t)arg;
+    uint8_t count;
+
+    (void)ds;
+    if (value < 3)
+        return arg;
+
+    count = 9;
+    for (;;) {
+        uint8_t top = (uint8_t)(value & 0x80u);
+
+        count--;
+        value = (uint8_t)(value << 1);
+        if (top != 0) {
+            if (value != 0)
+                count = 16;
+            break;
+        }
+    }
+    return (uint16_t)(((uint16_t)count << 8) | count);
+}
+
 /* 0x2E812 - lay out the one-pixel frames of a bar gauge: a stroke at x = 19
  * and one at x = 61 always, a third at 103 from index 2 and a fourth at 145
  * from index 3.  Every stroke starts on row 1 and runs to row 48, so the

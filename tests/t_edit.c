@@ -1,6 +1,8 @@
 /* t_edit.c - differential tests for the edit-box support routines. */
 #include "harness.h"
 
+#include <string.h>
+
 #include "../src/edit.h"
 
 static void test_prev_unit_off(void)
@@ -28,6 +30,39 @@ static void test_prev_unit_off(void)
                 check_ret("prev_unit_off", rc, cc);
                 check_mem("prev_unit_off", 0xD000, 0xD020);
             }
+        }
+    }
+}
+
+/* 0x17B16 passes the caller's frame pointer (er14) as the probe and copies the
+ * answer back into er14, so the register image has to agree as well. */
+static void test_prev_unit_off_open(void)
+{
+    static const uint8_t tails[] = {0x00, 0x24, 0x7F, 0xEF, 0xF0, 0xFF};
+    static const uint16_t probes[] = {0x0000u, 0x0001u, 0xD002u, 0xD008u,
+                                      0xD010u, 0xFFF1u};
+
+    for (size_t p = 0; p < sizeof(probes) / sizeof(probes[0]); p++) {
+        for (size_t t = 0; t < sizeof(tails); t++) {
+            uint16_t probe = probes[p];
+            uint8_t mine[16];
+            uint16_t er14 = 0;
+
+            random_image(0x43000u + (unsigned)(p * 10 + t));
+            if (probe >= 0xD002u) {
+                image[probe - 2] = tails[t];
+                image[probe - 1] = (uint8_t)~tails[t];   /* never read */
+            }
+            Args args = {.er = {0xBEEF, 0, 0, 0, 0, 0, 0, probe}};
+            uint16_t rc = run_rom(0x17B16, &args, "prev_unit_off_open");
+            begin_c();
+            uint16_t cc = prev_unit_off_open(after_c, 0xBEEF, probe, &er14);
+            check_ret("prev_unit_off_open", rc, cc);
+            memcpy(mine, after_rom_regs, sizeof(mine));
+            mine[14] = (uint8_t)(er14 & 0xFF);
+            mine[15] = (uint8_t)(er14 >> 8);
+            check_regs("prev_unit_off_open", mine, 0xC000u);
+            check_mem("prev_unit_off_open", 0xD000, 0xD020);
         }
     }
 }
@@ -168,6 +203,7 @@ static void test_clamp_editor_offset(void)
 void test_edit(void)
 {
     test_prev_unit_off();
+    test_prev_unit_off_open();
     test_encode_editor_token();
     test_adjust_editor_state();
     test_editor_special_to_ascii();

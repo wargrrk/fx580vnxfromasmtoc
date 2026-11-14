@@ -6,6 +6,8 @@
 
 W1(row_count_over_limit)
 W1(init_descriptor_record)
+W2(mul16)
+W1(shift_until_carry)
 W1(pitch_from_state)
 W1(tall_metric_from_font)
 W1(small_metric_from_font)
@@ -22,6 +24,8 @@ void test_arith(void)
     BATCH(
         {"row_count_over_limit", 0x27E60, "b", a_row_count_over_limit, 0},
         {"init_descriptor_record", 0x2F1C4, "p", a_init_descriptor_record, 0},
+        {"mul16", 0x1EDC8, "ww", a_mul16, 0},
+        {"shift_until_carry", 0x2406C, "w", a_shift_until_carry, 0},
         {"pitch_from_state", 0x2EB00, "w", a_pitch_from_state, 0},
         {"tall_metric_from_font", 0x27E86, "w", a_tall_metric_from_font, 0},
         {"small_metric_from_font", 0x2805E, "w", a_small_metric_from_font, 0},

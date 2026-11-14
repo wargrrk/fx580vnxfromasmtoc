@@ -33,6 +33,13 @@
 /* 0x09F3A - program the timer for a wait of `interval` ticks. */
 void timer_delay(uint8_t *ds, uint16_t interval);
 
+/* 0x23C94 - a wait of one tick, then straight back with the caller's er0.
+ * 0x23CA4 is its ten-tick twin, but nothing was translated behind that one yet. */
+uint16_t timer_delay_once(uint8_t *ds, uint16_t arg);
+
+/* 0x29B58 - display on, wait 0x0640 ticks, display off. */
+uint16_t display_pulse(uint8_t *ds, uint16_t arg);
+
 /* 0x09FF6 - end of a key scan: arms the next one. */
 void key_scan_end(uint8_t *ds);
 

@@ -563,3 +563,547 @@ uint16_t clear_block_d6b2(uint8_t *ds)
 {
     return memzero(ds, 0xD6B2u, 320);
 }
+
+/* ------------------------------------------------------------------ */
+/* Ten-byte record moves between the state blocks at 0xD000..0xD05F.
+ *
+ * 0x19E54 onwards is a run of sixteen routines with one shape: `l qr0, [ea+]`
+ * grabs eight bytes, `l er8, [ea+]` the last two, and the same pair is stored
+ * back through a second `lea`.  That is a ten-byte record move - the same
+ * record width 0x1D950 (record_init_kind) and 0x1DCCE (record_pair_copy) use.
+ * Only the two fixed addresses differ, so one helper serves all of them.
+ *
+ * Both accesses are multi-byte, so the core forces the effective address even
+ * (address bit 0 is ignored).  The loads all happen before the first store, so
+ * buffering the record is exact and the source has to be read before the copy
+ * even when the blocks overlapped - none of the fixed pairs do, but 0x17CA6
+ * takes its addresses from the caller and does not get that guarantee.
+ *
+ * The return value is what the loads left in er0: the first word of the
+ * *source* record, not the destination. */
+static uint16_t record10_move(uint8_t *ds, uint16_t dst, uint16_t src)
+{
+    uint8_t record[10];
+    uint16_t first;
+
+    dst = (uint16_t)(dst & 0xFFFEu);
+    src = (uint16_t)(src & 0xFFFEu);
+    for (int i = 0; i < 10; i++)
+        record[i] = ds[(uint16_t)(src + i)];
+    first = (uint16_t)(record[0] | ((uint16_t)record[1] << 8));
+    for (int i = 0; i < 10; i++)
+        ds_store(ds, (uint16_t)(dst + i), record[i]);
+    return first;
+}
+
+/* 0x1CAFC - clear the accumulator record and mark it as "zero result".  Four
+ * word stores zero 0xD000..0xD007, a byte store clears 0xD008 and then 0xF3
+ * goes to 0xD009, so the ten-byte record at 0xD000 comes back empty with the
+ * flag digit set.  er0 still holds the 0 the stores wrote, so it answers 0. */
+uint16_t record_reset_flag38(uint8_t *ds)
+{
+    for (int i = 0; i < 9; i++)
+        ds_store(ds, (uint16_t)(0xD000u + i), 0);
+    ds_store(ds, 0xD009u, 0xF3);
+    return 0;
+}
+
+/* The two record handovers below are not straight copies: they convert between
+ * the numeric record at 0xD000 and the display buffer, and the conversion is a
+ * byte-order change.  Reading the record as five big-endian words, words 1..4
+ * are reversed *and* byte-swapped while word 0 is left alone, so the ten bytes
+ * come out in the order below.  `record_swap_out` is what 0x1C674 writes (its
+ * inverse, `record_swap_in`, is what 0x1C63E reads) - the two are each other's
+ * inverse, which the differential tests confirm byte for byte. */
+static const uint8_t record_swap_out[10] = {9, 8, 7, 6, 5, 4, 3, 2, 0, 1};
+static const uint8_t record_swap_in[10] = {8, 9, 7, 6, 5, 4, 3, 2, 1, 0};
+
+/* Load all ten source bytes, then store them through `map`.  The load is done
+ * first so an overlapping source is still read before anything is written, and
+ * the source address is rounded down to even because both loads are
+ * multi-byte.  Which end the *word* store sits at decides where the alignment
+ * rule bites, so it is a parameter: 0x1C63E starts with the pair, 0x1C674 ends
+ * with it and the pair's address is forced even there, which on an odd
+ * destination overwrites the eighth byte again. */
+static uint16_t record10_permute(uint8_t *ds, uint16_t dst, uint16_t src,
+                                 const uint8_t *map, int word_first)
+{
+    uint8_t record[10];
+
+    src = (uint16_t)(src & 0xFFFEu);
+    for (int i = 0; i < 10; i++)
+        record[i] = ds[(uint16_t)(src + i)];
+
+    if (word_first) {
+        ds_store(ds, dst, record[map[0]]);
+        ds_store(ds, (uint16_t)(dst + 1), record[map[1]]);
+        for (int i = 2; i < 10; i++)
+            ds_store(ds, (uint16_t)(dst + i), record[map[i]]);
+    } else {
+        uint16_t tail = (uint16_t)((uint16_t)(dst + 8) & 0xFFFEu);
+
+        for (int i = 0; i < 8; i++)
+            ds_store(ds, (uint16_t)(dst + i), record[map[i]]);
+        ds_store(ds, tail, record[map[8]]);
+        ds_store(ds, (uint16_t)(tail + 1), record[map[9]]);
+    }
+    return (uint16_t)(record[0] | ((uint16_t)record[1] << 8));
+}
+
+/* 0x1C63E - load both ten-byte records at once: the bytes at `src_b` become
+ * 0xD010..0xD019 and the bytes at `src_a` become 0xD000..0xD009, both through
+ * the byte-order map.  The upper record is filled first and each half is read
+ * completely before it is written, so an overlapping source sees the first
+ * half's writes.  er0 is never written, so the caller's argument comes back. */
+uint16_t records_from_pointers(uint8_t *ds, uint16_t src_a, uint16_t src_b)
+{
+    (void)record10_permute(ds, 0xD010u, src_b, record_swap_in, 1);
+    (void)record10_permute(ds, 0xD000u, src_a, record_swap_in, 1);
+    return src_a;
+}
+
+/* 0x1C674 - hand the record at 0xD000 to the buffer whose address sits at
+ * 0xD05C, through the byte-order map.  The pair of stores at the end are the
+ * only word-wide ones, so an *odd* 0xD05C leaves the eighth byte written twice
+ * and never reaches 0xD05C+9 (see record10_permute).  The answer is the first
+ * word of the source, which the loads left in er0. */
+uint16_t record_to_pointer(uint8_t *ds)
+{
+    uint16_t dst = (uint16_t)(ds[0xD05Cu] | ((uint16_t)ds[0xD05Du] << 8));
+
+    return record10_permute(ds, dst, 0xD000u, record_swap_out, 0);
+}
+
+/* 0x14BDC - the stride-5 index of 0x14BCC with the caller's registers saved
+ * around it.  It copies er0/er2 into er4/er12 for no reason the result can see
+ * (the callee clobbers r4..r7 and r8..r15, which is what the pushes protect),
+ * then calls 0x14BCC with the same er0/er2 it came in with, so the whole body
+ * is that call. */
+uint16_t record10_index_5x_saved(uint8_t *ds, uint16_t base, uint16_t bias)
+{
+    return record10_index_5x(ds, base, bias, NULL);
+}
+
+/* 0x14BF0 - `_memcpy_nn` with a count of 200 pushed on the stack: `mov r4, 200
+ * / mov r5, 0 / push er4` is the fourth argument.  The two `pop er4` restore
+ * the caller's pair one at a time. */
+uint16_t memcpy_200(uint8_t *ds, uint16_t dst, uint16_t src)
+{
+    return memcpy_nn(ds, dst, src, 200);
+}
+
+/* 0x14C04 - the same with a count of 50. */
+uint16_t memcpy_50(uint8_t *ds, uint16_t dst, uint16_t src)
+{
+    return memcpy_nn(ds, dst, src, 50);
+}
+
+/* 0x1E5B4 - the mode test of the table/converter screen: mode 75 (0x4B) with
+ * sub-state 1.  Both stores are byte loads, so the high half of the answer is
+ * the caller's r1 and has to be carried through. */
+uint16_t mode_is_75_1(uint8_t *ds, uint16_t arg)
+{
+    uint8_t flag = (uint8_t)(ds[0xD111] == 75 && ds[0xD114] == 1);
+
+    return (uint16_t)((arg & 0xFF00u) | flag);
+}
+
+/* 0x24B28 - the same test for mode 69 (0x45). */
+uint16_t mode_is_69_1(uint8_t *ds, uint16_t arg)
+{
+    uint8_t flag = (uint8_t)(ds[0xD111] == 69 && ds[0xD114] == 1);
+
+    return (uint16_t)((arg & 0xFF00u) | flag);
+}
+
+/* 0x13ACC - copy ten bytes from er4 to er8, both rounded down to even.  The
+ * pair of `mov`s feeds the shared copy tail at 0x1DCE4, and er0 is never
+ * written, so the destination address is what comes back. */
+uint16_t record10_er8_from_er4(uint8_t *ds, uint16_t src, uint16_t dst)
+{
+    (void)record10_move(ds, dst, src);
+    return dst;
+}
+
+/* 0x17FDE - zero a thirty-byte structure at er14 and set two flags in it.
+ * 0x180D0 is called first, which leaves er0/er2/er4/er6 zero and r8/r9 at 0/1.
+ * Then five stores write r0..r7 twice, r0..r3 once, r0..r7 again (now with r0
+ * set to 1) and finally the r8/r9 pair, so byte 20 becomes 1 and byte 29
+ * becomes 1 while the other twenty-eight stay zero.  The first store is word
+ * wide, so an odd er14 rounds down and the block starts one byte earlier. */
+uint16_t init_struct_30(uint8_t *ds, uint16_t frame)
+{
+    uint16_t base = (uint16_t)(frame & 0xFFFEu);
+
+    for (int i = 0; i < 30; i++)
+        ds_store(ds, (uint16_t)(base + i), 0);
+    ds_store(ds, (uint16_t)(base + 20), 1);
+    ds_store(ds, (uint16_t)(base + 29), 1);
+    return 1;
+}
+
+/* 0x1B682 - a flag taken from the record's kind byte: the top nibble of
+ * 0xD009, after masking, must be neither 0 nor 0x20.  `l r0` and `and r0,240`
+ * are byte operations, so the high half of the answer is the caller's r1. */
+uint16_t record_kind_flag(uint8_t *ds, uint16_t arg)
+{
+    uint8_t kind = (uint8_t)(ds[0xD009] & 0xF0u);
+
+    return (uint16_t)((arg & 0xFF00u) | (kind != 0 && kind != 0x20 ? 1u : 0u));
+}
+
+/* 0x29490 - the digit at the pointer if it is below 15, otherwise the raw byte
+ * just after it.  The compare is against the *decoded* digit that 0x1DAE2
+ * returns, and the second path only reloads the low half, so the high half of
+ * the answer is the pointer's high byte either way. */
+uint16_t digit_or_next_byte(uint8_t *ds, uint16_t ptr)
+{
+    uint16_t digit = digit_at(ds, ptr);
+
+    if ((uint8_t)digit < 15)
+        return digit;
+    return (uint16_t)((digit & 0xFF00u) | ds[(uint16_t)(ptr + 1)]);
+}
+
+/* 0x09D16 - copy a ten-byte record only when both addresses are non-zero, and
+ * answer with the destination either way.
+ *
+ * The tail is `bl f_1DCCE.l_016`, the label inside record_pair_copy where the
+ * second `push er6 / push qr8` sits: entering there skips the `lea 10[...]` of
+ * the upper half, so only the ten bytes at the source are moved.  Zero is the
+ * "no record" pointer, and the two guards are `add erN, 0` / `bc eq` - the
+ * value itself is untouched, so the early exit returns the caller's er0. */
+uint16_t record10_copy_if_present(uint8_t *ds, uint16_t dst, uint16_t src)
+{
+    if (dst == 0 || src == 0)
+        return dst;
+
+    (void)record10_move(ds, dst, src);
+    return dst;
+}
+
+/* 0x19E54 - copy the 0xD046 record over 0xD010. */
+uint16_t record10_d046_to_d010(uint8_t *ds)
+{
+    return record10_move(ds, 0xD010u, 0xD046u);
+}
+
+/* 0x19E66 - the reverse direction. */
+uint16_t record10_d010_to_d046(uint8_t *ds)
+{
+    return record10_move(ds, 0xD046u, 0xD010u);
+}
+
+/* 0x19E78 */
+uint16_t record10_d000_to_d046(uint8_t *ds)
+{
+    return record10_move(ds, 0xD046u, 0xD000u);
+}
+
+/* 0x19E8A */
+uint16_t record10_d03c_to_d000(uint8_t *ds)
+{
+    return record10_move(ds, 0xD000u, 0xD03Cu);
+}
+
+/* 0x19E9C */
+uint16_t record10_d03c_to_d010(uint8_t *ds)
+{
+    return record10_move(ds, 0xD010u, 0xD03Cu);
+}
+
+/* 0x19EAE */
+uint16_t record10_d000_to_d03c(uint8_t *ds)
+{
+    return record10_move(ds, 0xD03Cu, 0xD000u);
+}
+
+/* 0x19EC0 */
+uint16_t record10_d050_to_d010(uint8_t *ds)
+{
+    return record10_move(ds, 0xD010u, 0xD050u);
+}
+
+/* 0x19ED2 */
+uint16_t record10_d000_to_d050(uint8_t *ds)
+{
+    return record10_move(ds, 0xD050u, 0xD000u);
+}
+
+/* 0x19EE4 */
+uint16_t record10_d030_to_d010(uint8_t *ds)
+{
+    return record10_move(ds, 0xD010u, 0xD030u);
+}
+
+/* 0x19EF6 */
+uint16_t record10_d000_to_d030(uint8_t *ds)
+{
+    return record10_move(ds, 0xD030u, 0xD000u);
+}
+
+/* 0x19F08 - the same fixed pair as 0x19F1A in the opposite direction, and the
+ * same pair as 0x19E54 the other way round; the ROM keeps a separate entry for
+ * every direction it needs instead of testing one at run time. */
+uint16_t record10_d000_to_d010(uint8_t *ds)
+{
+    return record10_move(ds, 0xD010u, 0xD000u);
+}
+
+/* 0x19F1A */
+uint16_t record10_d010_to_d000(uint8_t *ds)
+{
+    return record10_move(ds, 0xD000u, 0xD010u);
+}
+
+/* 0x19F2C */
+uint16_t record10_d010_to_d050(uint8_t *ds)
+{
+    return record10_move(ds, 0xD050u, 0xD010u);
+}
+
+/* 0x19F3E */
+uint16_t record10_d050_to_d000(uint8_t *ds)
+{
+    return record10_move(ds, 0xD000u, 0xD050u);
+}
+
+/* 0x19F50 */
+uint16_t record10_d030_to_d000(uint8_t *ds)
+{
+    return record10_move(ds, 0xD000u, 0xD030u);
+}
+
+/* 0x19F62 */
+uint16_t record10_d010_to_d030(uint8_t *ds)
+{
+    return record10_move(ds, 0xD030u, 0xD010u);
+}
+
+/* 0x17CA6 - the same ten-byte move with both addresses taken from registers:
+ * the source is er14 and the destination er12, which is how the ROM passes a
+ * frame-resident record around without a stack argument.  er0 is not an input
+ * - the first load overwrites it - so the caller only sees the source word
+ * come back. */
+uint16_t record10_from_frame(uint8_t *ds, uint16_t dst, uint16_t src)
+{
+    return record10_move(ds, dst, src);
+}
+
+/* The packed-digit step of the same family: 0x1B286 adds five to the second
+ * byte of the 0xD000 record in BCD.  A byte below five is left alone (`bc lt`
+ * is unsigned, so 0x80..0xFF takes the add path).
+ *
+ * `add r1, 5` sets carry and half-carry, and the `daa` that follows reads both:
+ * 5 + 5 carries out of the low nibble, so 0x05 comes back as digit 0 and not
+ * 0x0A.  The half-carry is the one taken out of the *low nibble*, not out of
+ * the full sum - reading bit 4 of the sum sets it for 0x11 as well and turns
+ * the answer into 0.  `and r1, 15` then keeps the digit alone, and that mask is
+ * why the whole 0xFB..0xFF range (where the add carries out) collapses onto the
+ * same answer either way. */
+static uint8_t bcd_adjust(uint8_t value, int half_carry, int carry)
+{
+    uint8_t adjust = 0;
+
+    if ((value & 0x0Fu) > 0x09u || half_carry)
+        adjust |= 0x06u;
+    if ((value & 0xF0u) > 0x90u || carry)
+        adjust |= 0x60u;
+    if ((value & 0xF0u) == 0x90u && (value & 0x0Fu) > 0x09u && !half_carry)
+        adjust |= 0x60u;
+    return (uint8_t)(value + adjust);
+}
+
+/* 0x1B286 - the record byte add itself. */
+uint16_t record_high_byte_add5(uint8_t *ds)
+{
+    uint16_t word = ds_load16(ds, 0xD000u);
+    uint8_t high = (uint8_t)(word >> 8);
+    uint16_t sum;
+    int half_carry;
+
+    if (high < 5u)
+        return word;
+
+    sum = (uint16_t)((uint16_t)high + 5u);
+    half_carry = (int)((((unsigned)(high & 0x0Fu) + 5u) >> 4) & 1u);
+    high = bcd_adjust((uint8_t)sum, half_carry, sum > 0xFFu);
+    word = (uint16_t)((word & 0x00FFu) | ((uint16_t)(high & 0x0Fu) << 8));
+    ds_store16(ds, 0xD000u, word);
+    return word;
+}
+
+/* 0x1C6AA - the packed digit byte at 0xD009: 0xF0 and up carry a digit in the
+ * low nibble, anything below carries nothing.  `l r0, [d_0D009]` replaces only
+ * the low half, so the caller's r1 survives into the result. */
+uint16_t digit_0D009(uint8_t *ds, uint16_t arg)
+{
+    uint8_t value = ds[0xD009];
+    uint8_t digit = (value >= 0xF0u) ? (uint8_t)(value & 0x0Fu) : 0;
+
+    return (uint16_t)((arg & 0xFF00u) | digit);
+}
+
+/* 0x1DAE2 - the same decode with the byte fetched through the argument, which
+ * keeps the byte as a plain number instead of a state byte. */
+uint16_t digit_at(uint8_t *ds, uint16_t ptr)
+{
+    uint8_t value = ds[ptr];
+    uint8_t digit = (value >= 0xF0u) ? (uint8_t)(value & 0x0Fu) : 0;
+
+    return (uint16_t)((ptr & 0xFF00u) | digit);
+}
+
+/* 0x13B86 and 0x14BCC are the same routine with a different stride, and each
+ * needs its own address annotation to count as translated.  Three instruction
+ * traps stack up here.  `mul er0, r12` multiplies the *low bytes* only
+ * (emu/nx8.c op_mul masks er0 to 8 bits), the `add r0, r13` that follows is an
+ * 8-bit add whose carry is lost into nothing, and the second `mul er0, r2`
+ * again takes the low byte alone.  So a stride that overflows the byte wraps
+ * before the times-ten, exactly as it does in the ROM.  The byte offset comes
+ * back in er2 as well as sitting below the base in er0, which is why the C
+ * signature takes an out-parameter. */
+static uint16_t record10_index(uint16_t base, uint16_t bias, uint8_t stride,
+                              uint16_t *offset)
+{
+    uint16_t product = (uint16_t)((uint16_t)stride * (uint8_t)bias);
+    uint8_t low = (uint8_t)((uint8_t)product + (uint8_t)(bias >> 8));
+    uint16_t scaled = (uint16_t)((uint16_t)low * 10u);
+
+    if (offset)
+        *offset = scaled;
+    return (uint16_t)(scaled + base);
+}
+
+/* 0x13B86 - stride 4. */
+uint16_t record10_index_4x(uint8_t *ds, uint16_t base, uint16_t bias,
+                           uint16_t *offset)
+{
+    (void)ds;
+    return record10_index(base, bias, 4u, offset);
+}
+
+/* 0x14BCC - the same with stride 5. */
+uint16_t record10_index_5x(uint8_t *ds, uint16_t base, uint16_t bias,
+                           uint16_t *offset)
+{
+    (void)ds;
+    return record10_index(base, bias, 5u, offset);
+}
+
+/* 0x14FC6 - er10 = er6 + 10 * r12.  No base address is involved and nothing is
+ * loaded or stored: the whole routine is an 8-bit index times ten, added to a
+ * pointer, so it exists to walk a table of ten-byte records.  `mul er0, r2`
+ * masks er0 to its low byte first (op_mul) and the `add er0, er6` that follows
+ * is a full sixteen-bit add. */
+uint16_t base_plus_10x_index(uint8_t *ds, uint8_t index, uint16_t er6,
+                             uint16_t *er10_out)
+{
+    uint16_t moved = (uint16_t)((uint16_t)(index * 10u) + er6);
+
+    (void)ds;
+    if (er10_out)
+        *er10_out = moved;
+    return moved;
+}
+
+/* 0x13B96 - load the word at `base + 2 * index`, and leave 9 in r2.  The address
+ * is forced even, because a multi-byte `l` ignores bit 0.  er2 is deliberately
+ * *not* the base in er0 here: the ROM adds into er2 in place, so the returned
+ * er0 is the loaded word while the caller's er2 has been disturbed - a detail
+ * that only matters to the caller and is not part of this signature. */
+uint16_t word_at_2x_index(uint8_t *ds, uint16_t base, uint8_t index,
+                          uint8_t *r2_out)
+{
+    uint16_t addr = (uint16_t)((base + (uint16_t)(2u * index)) & 0xFFFEu);
+
+    if (r2_out)
+        *r2_out = 9;
+    return (uint16_t)(ds[addr] | ((uint16_t)ds[(uint16_t)(addr + 1)] << 8));
+}
+
+/* 0x17E52 - unpack one nibble pair out of a record at er12.
+ *
+ * `l r11,[er12]` loads the byte at +0 into r11 and `l r10,1[er12]` the byte at
+ * +1 into r10, so as a word er10 holds +0 in its *high* half.  The shift that
+ * follows, `sllc r11, 4`, is not an eight-bit shift: the manual's `SLLC Rn,obj`
+ * shifts "the 16 bits in the specified register and the register below it" and
+ * stores the upper eight bits back in Rn.  So the pair is shifted left four
+ * places as a word and only the high byte survives, which makes r11 the low
+ * nibble of the first byte spliced into the low nibble of the second.  The
+ * answer in er0 is the byte at +8, read *before* the branch that guards the
+ * shift, and the carry that `sllc` pulls in lands in the low half that is
+ * discarded, so a set carry cannot change the result. */
+uint16_t nibble_pair_shifted(uint8_t *ds, uint16_t base, uint8_t *r10_out,
+                             uint8_t *r11_out)
+{
+    uint8_t high = ds[base];
+    uint8_t low = ds[(uint16_t)(base + 1)];
+    uint8_t flag = ds[(uint16_t)(base + 8)];
+
+    if (flag != 0) {
+        uint16_t word = (uint16_t)(((uint16_t)high << 8) | low);
+
+        high = (uint8_t)(((uint16_t)(word << 4)) >> 8);
+    }
+    if (r11_out)
+        *r11_out = high;
+    if (r10_out)
+        *r10_out = low;
+    return flag;
+}
+
+/* 0x16070 - two's complement of the 32-bit value held in er2:er0.
+ *
+ * The complement is four `xor rN, 255`, the increment is `add er0, 1` followed
+ * by two 8-bit `addc` on r2 and r3 - a real 32-bit carry chain, so 0x0000FFFF
+ * comes back as 0xFFFF0001. */
+uint16_t complement32(uint8_t *ds, uint16_t low, uint16_t high,
+                      uint16_t *out_high)
+{
+    uint32_t value = (uint32_t)(~(((uint32_t)high << 16) | low)) + 1u;
+
+    (void)ds;
+    if (out_high)
+        *out_high = (uint16_t)(value >> 16);
+    return (uint16_t)value;
+}
+
+/* 0x09E84 - how much of the 0xE3E4-byte budget the stack has eaten: the
+ * routine is `mov er0, sp ; sub r0, 228 ; subc r1, 227`, i.e. sp - 0xE3E4.
+ * It reads the stack pointer itself, so the C body takes it as an argument
+ * rather than reaching for a global the flat data space cannot express. */
+uint16_t stack_bytes_used(uint8_t *ds, uint16_t sp)
+{
+    (void)ds;
+    return (uint16_t)(sp - 0xE3E4u);
+}
+
+/* 0x23F8A - spill the whole register file into the caller's frame: er12 is
+ * pointed at er14 - 16, and `st qr0` plus `st qr8` write sixteen bytes there.
+ * er12 is saved and restored around the address arithmetic, so er0 and every
+ * other register come back unchanged - the *return value* is the word the
+ * caller already had in er0, and the effect is entirely in memory. */
+uint16_t store_reg_to_stack(uint8_t *ds, uint16_t frame, const uint8_t *regs)
+{
+    uint16_t base = (uint16_t)((uint16_t)(frame - 16u) & 0xFFFEu);
+
+    for (int i = 0; i < 16; i++)
+        ds_store(ds, (uint16_t)(base + i), regs[i]);
+    return (uint16_t)(regs[0] | ((uint16_t)regs[1] << 8));
+}
+
+/* 0x143D6 - the high nibble of r4 parked in r5, with the constant 3 left in r2.
+ * Three instructions, no memory and no er0: the whole result is in registers
+ * the calling convention does not carry, which is why the C body answers them
+ * through out-parameters and returns er0 untouched. */
+uint16_t high_nibble_into_r5(uint8_t *ds, uint16_t arg, uint8_t r4,
+                             uint8_t *r5, uint8_t *r2)
+{
+    (void)ds;
+    if (r5)
+        *r5 = (uint8_t)(r4 >> 4);
+    if (r2)
+        *r2 = 3;
+    return arg;
+}

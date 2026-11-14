@@ -1,5 +1,6 @@
 /* t_hw.c - differential tests for the hardware-register helpers. */
 #include "batch.h"
+#include "harness.h"
 
 #include "../src/hw.h"
 
@@ -40,6 +41,35 @@ W1(record_10b_0DA40)
 W0(state_reset_0D116)
 W1(table_byte_10b)
 
+W0(state_swap_nibbles)
+W1(state_merge_high)
+W1(modifier_clear_bit7)
+W0(dot_or_prime)
+W0(clear_call_registers)
+W1(no_op_0CB0E)
+W1(display_enable_set)
+W1(record_tail_over_14)
+
+/* 0x1FFFE is a bare `pop pc`.  Called through `bl` it pops the return address
+ * the call pushed, so to run it the harness has to put one on the stack - and
+ * `pop pc` pops *four* bytes (pc then csr), so the word after the sentinel has
+ * to be a zero csr or the core keeps running in segment garbage.  This is why
+ * the case cannot go through the batch runner: no shape can describe it. */
+static void test_pop_pc_return(void)
+{
+    static const uint16_t args[] = {0, 1, 0x1234, 0xFFFF};
+
+    for (size_t i = 0; i < sizeof(args) / sizeof(args[0]); i++) {
+        random_image((uint32_t)(0xC7000 + i));
+        Args a = {.er = {args[i], 0}, .stk = {NX8_SENTINEL, 0}, .nstk = 2};
+        uint16_t rom_ret = run_rom(0x1FFFE, &a, "return_immediately_1FFFE");
+        begin_c();
+        uint16_t c_ret = return_immediately_1FFFE(after_c, args[i]);
+        check_ret("return_immediately_1FFFE", rom_ret, c_ret);
+        check_mem_all("return_immediately_1FFFE");
+    }
+}
+
 void test_hw(void)
 {
     BATCH(
@@ -79,5 +109,15 @@ void test_hw(void)
         {"record_10b_0DA40", 0x18940, "w", a_record_10b_0DA40, 0},
         {"state_reset_0D116", 0x09D42, "", a_state_reset_0D116, 0},
         {"table_byte_10b", 0x1826E, "w", a_table_byte_10b, 0},
+        {"state_swap_nibbles", 0x0E1D2, "", a_state_swap_nibbles, 0},
+        {"state_merge_high", 0x2084C, "b", a_state_merge_high, 0},
+        {"modifier_clear_bit7", 0x20DD2, "b", a_modifier_clear_bit7, 0},
+        {"dot_or_prime", 0x206FA, "", a_dot_or_prime, 0},
+        {"clear_call_registers", 0x180D0, "", a_clear_call_registers, 0},
+        {"no_op_0CB0E", 0x0CB0E, "w", a_no_op_0CB0E, 0},
+        {"display_enable_set", 0x0A146, "w", a_display_enable_set, 0},
+        {"record_tail_over_14", 0x1844E, "w", a_record_tail_over_14, 0},
     );
+
+    test_pop_pc_return();
 }

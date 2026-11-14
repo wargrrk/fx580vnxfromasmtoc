@@ -17,6 +17,7 @@ immediately preceding the declaration.  A bare mention anywhere else - a prose
 note, a TODO, or a data argument like `subtract_words(rom, 0x20000, ...)` - is
 not evidence that the routine has a C body.
 """
+import bisect
 import glob
 import json
 import os
@@ -39,9 +40,14 @@ STRUCTURAL_ENTRIES = frozenset({0x0AC30, 0x0AC38, 0x2110A})
 
 # Entries that are not functions at all and can never have a C body of their
 # own: the frame plumbing above (which every translation already models), the
-# reset vector, and the interrupt return stub.  Keeping them in the denominator
-# would cap coverage below 100% for ever.
-NOT_A_FUNCTION = frozenset({0x00004, 0x0A1BC, 0x0AC30, 0x0AC38, 0x2110A})
+# reset vector, the interrupt return stub, and the two thunks at 0x0A1CE /
+# 0x0A1D0.  The thunks are a zero-length `bc al` (one skips a word, the other
+# branches to itself), which cannot be compiled code - they are the tail of the
+# interrupt vector area that sits right after the `rti` at 0x0A1CC, and the
+# real entry point is 0x0A1D2.  Keeping them in the denominator would cap
+# coverage below 100% for ever.
+NOT_A_FUNCTION = frozenset({0x00004, 0x0A1BC, 0x0A1CE, 0x0A1D0, 0x0AC30, 0x0AC38,
+                            0x2110A})
 
 
 def load_db(root=ROOT):
@@ -174,6 +180,67 @@ def function_bodies(db):
             stack.extend(_successors(insn, addr, addr + insn["length"]))
         callees.discard(owner)
         out[owner] = (len(seen), callees)
+    return out
+
+
+class SpanOwners:
+    """addr -> the function entry whose body contains it.
+
+    `entry_owners` only knows the addresses that *are* entries (a `bl` target or
+    a non-local label).  A `.l_NNN` branch target that is never called from
+    anywhere else is not one of those, yet it still lives inside somebody's
+    body - `b f_13AB4.l_00E` at 0x1443E lands on 0x13AC2, an address nobody
+    calls directly.  Resolving a target through this map is what stops
+    frontier.py from advertising a routine as "ready" while the code it jumps
+    into has no C body yet.
+    """
+
+    def __init__(self, db):
+        self._owners = entry_owners(db)
+        self._spans = sorted(set(self._owners.values()))
+
+    def __call__(self, addr):
+        owner = self._owners.get(addr)
+        if owner is not None:
+            return owner
+        index = bisect.bisect_right(self._spans, addr) - 1
+        return self._spans[index] if index >= 0 else None
+
+
+def dependencies(db, bodies):
+    """function entry -> owners of every function it can transfer to.
+
+    Unlike the `callees` in function_bodies() this follows every way control can
+    leave the body: `bl`, the unconditional `b`, and any `bc` whose target sits
+    in another function (a conditional tail call, or a branch into a shared
+    tail).  Both are resolved through SpanOwners, so a call to an address that
+    is not itself an entry - `bc al, f_1568A.l_02E` at 0x15720 - still shows up
+    as depending on the function that owns it.  A routine cannot be diff-tested
+    until everything reachable this way has a C body.
+    """
+    insns = {int(i["addr"], 16): i for i in db["insns"]}
+    span = SpanOwners(db)
+    cache = {}
+
+    def owner_of(addr):
+        if addr not in cache:
+            cache[addr] = span(addr)
+        return cache[addr]
+
+    out = {}
+    for owner in bodies:
+        deps = set()
+        for addr, insn in insns.items():
+            if owner_of(addr) != owner:
+                continue
+            if insn["mnemonic"] not in ("bl", "b", "bc"):
+                continue
+            for param in insn["params"]:
+                if isinstance(param, list) and len(param) == 2:
+                    target = owner_of(param[0])
+                    if target is not None and target != owner:
+                        deps.add(target)
+        out[owner] = deps
     return out
 
 

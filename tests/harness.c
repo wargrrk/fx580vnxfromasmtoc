@@ -8,6 +8,7 @@
 uint8_t image[IMG_SIZE];
 uint8_t after_rom[IMG_SIZE];
 uint8_t after_c[IMG_SIZE];
+uint8_t after_rom_regs[16];
 int checks;
 int failures;
 int rom_no_return;
@@ -109,6 +110,7 @@ uint16_t run_rom_ex(uint32_t addr, const Args *a, const char *what,
         *returned = 1;
     memcpy(after_rom, image, IMG_SIZE);
     memcpy(after_rom + RAM_BASE, m.mem + RAM_BASE, IMG_SIZE - RAM_BASE);
+    memcpy(after_rom_regs, m.r, sizeof(after_rom_regs));
     return nx8_er(&m, 0);
 }
 
@@ -124,6 +126,35 @@ void check_ret(const char *what, uint16_t rom_ret, uint16_t c_ret)
         failures++;
         printf("FAIL %-24s ret: rom=%04X c=%04X\n", what, rom_ret, c_ret);
     }
+}
+
+void check_regs(const char *what, const uint8_t *mine, uint16_t mask)
+{
+    const int show = 8;
+    int shown = 0;
+    int total = 0;
+
+    checks++;
+    for (int reg = 0; reg < 16; reg++) {
+        if (!((mask >> reg) & 1u))
+            continue;
+        if (after_rom_regs[reg] == mine[reg])
+            continue;
+        if (shown < show) {
+            printf("FAIL %-24s reg r%-2d rom=%02X c=%02X\n", what, reg,
+                   after_rom_regs[reg], mine[reg]);
+            shown++;
+        }
+        total++;
+    }
+    if (total == 0)
+        return;
+    failures++;
+    if (total > shown)
+        printf("FAIL %-24s regs: %d differing bytes (first %d listed)\n", what,
+               total, shown);
+    else
+        printf("FAIL %-24s regs: %d differing bytes\n", what, total);
 }
 
 void check_mem(const char *what, uint32_t from, uint32_t to)

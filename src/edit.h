@@ -20,6 +20,11 @@
  */
 uint16_t prev_unit_off(uint8_t *ds, uint16_t lo, uint16_t probe);
 
+/* 0x17B16 - prev_unit_off with `lo` fixed at 0; the answer lands in er14 and the
+ * caller's er0 comes straight back (`pop xr0` restores r0..r3). */
+uint16_t prev_unit_off_open(uint8_t *ds, uint16_t arg, uint16_t probe,
+                            uint16_t *er14_out);
+
 /* 0x20AA8 - encode an editor mode/value token at `output`. */
 uint16_t encode_editor_token(uint8_t *ds, uint8_t value, uint16_t output);
 
