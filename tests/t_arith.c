@@ -1,4 +1,5 @@
-/* t_arith.c - differential tests for the arithmetic core at 0x27000-0x31000 */
+/* t_arith.c - differential tests for the arithmetic core at 0x27000-0x31000 */#include <string.h>
+
 #include "batch.h"
 #include "harness.h"
 
@@ -19,6 +20,54 @@ static uint16_t a_key_repeat_gate(uint8_t *ds, const uint16_t *e,
     return key_repeat_gate(ds, e[0], s);
 }
 
+/* 0x1BB28 / 0x1BB3A / 0x1BB4E / 0x1BB60 shift a run of registers by four bits.
+ * Nothing but the register file changes, so the whole test is a comparison
+ * between the image the ROM left and the one the C body leaves. */
+static void one_shift(uint32_t addr, const char *name,
+                      uint16_t (*shift)(uint8_t *, uint8_t *), uint8_t *er,
+                      uint16_t mask, uint32_t seed)
+{
+    uint8_t mine[16];
+
+    random_image(seed);
+    Args args = {.nstk = 0};
+    for (int i = 0; i < 8; i++)
+        args.er[i] = (uint16_t)(er[2 * i] | ((uint16_t)er[2 * i + 1] << 8));
+    uint16_t rom_ret = run_rom(addr, &args, name);
+    begin_c();
+    /* the C body has to start from the *input* image: shifting the ROM's own
+     * output a second time is what a first attempt did, and on a uniform byte
+     * pattern that quietly maps back onto itself */
+    memcpy(mine, er, sizeof(mine));
+    uint16_t c_ret = shift(after_c, mine);
+    check_ret(name, rom_ret, c_ret);
+    check_regs(name, mine, mask);
+}
+
+static void test_register_shifts(void)
+{
+    static const uint16_t masks[] = {0x0001, 0x00FF, 0x0100, 0x7F7F, 0xFF80,
+                                     0xA5A5, 0xFFFF, 0xF0F0};
+
+    for (size_t m = 0; m < sizeof(masks) / sizeof(masks[0]); m++) {
+        uint8_t er[16];
+        uint32_t seed = 0xF0000u + (uint32_t)m;
+
+        for (int b = 0; b < 16; b++)
+            er[b] = (uint8_t)(masks[m] >> ((b % 2) * 8));
+
+        one_shift(0x1BB28, "shift_qr0_right4", shift_qr0_right4, er, 0x00FFu,
+                  seed + 1);
+        one_shift(0x1BB3A, "shift_r1_r9_right4", shift_r1_r9_right4, er,
+                  0x03FEu, seed + 2);
+        one_shift(0x1BB4E, "shift_qr0_left4", shift_qr0_left4, er, 0x00FFu,
+                  seed + 3);
+        one_shift(0x1BB60, "shift_r1_r9_left4", shift_r1_r9_left4, er, 0x03FEu,
+                  seed + 4);
+    }
+}
+
+
 void test_arith(void)
 {
     BATCH(
@@ -32,6 +81,8 @@ void test_arith(void)
         {"reset_flags_and_state", 0x2AB3C, "w", a_reset_flags_and_state, 0},
         {"key_repeat_gate", 0x28414, "w|w", a_key_repeat_gate, 0},
     );
+
+    test_register_shifts();
 
     /* 0x298E2 - the two rows come from the pointer table at 0x07AC2, so run it
      * against every buffer/mode combination the screen path can see: the

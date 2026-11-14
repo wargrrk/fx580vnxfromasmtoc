@@ -180,6 +180,10 @@ uint16_t mul16(uint8_t *ds, uint16_t x, uint16_t y);
 /* 0x2406C - how far a byte has to be shifted before its top bit leaves; the
  * count comes back in both halves of er0. */
 uint16_t shift_until_carry(uint8_t *ds, uint16_t arg);
+uint16_t shift_qr0_right4(uint8_t *ds, uint8_t *r);
+uint16_t shift_r1_r9_right4(uint8_t *ds, uint8_t *r);
+uint16_t shift_qr0_left4(uint8_t *ds, uint8_t *r);
+uint16_t shift_r1_r9_left4(uint8_t *ds, uint8_t *r);
 void draw_bar_frames(uint8_t *ds, uint8_t index);
 uint16_t pitch_from_state(uint8_t *ds, uint16_t arg);
 uint16_t key_repeat_gate(uint8_t *ds, uint16_t arg, const uint16_t *stk);

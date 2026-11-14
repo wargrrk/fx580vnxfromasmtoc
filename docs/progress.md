@@ -52,8 +52,8 @@ on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 218 / 761 (28.6%) |
-| instructions | 4525 / 32749 (13.8%) |
+| routines | 222 / 761 (29.2%) |
+| instructions | 4563 / 32749 (13.9%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
@@ -76,6 +76,8 @@ the core manual (`resource/nX-U8100 Core Instruction Manual.txt`) or against
 | multi-byte `l`/`st` | the effective address is forced even: address bit 0 is ignored, so an odd pointer rounds *down* | §1.3.5.3 "Word Boundaries" |
 | register groups | `erN` = 2 bytes (`rN..rN+1`), `xrN` = 4 (`rN..rN+3`), `qrN` = 8 (`rN..rN+7`) - the number is the *first* register, so `push qr8` saves r8..r15 and `push xr0` saves **r0..r3** | `tools/nx8.py`, instruction formats |
 | `push xr0` / `pop xr0` as a save | restoring r0..r3 throws away the callee's `er0` answer. `0x17B16` (`mov er0,0` / `bl f_0AC60` / `mov er14,er0` / `pop xr0`) therefore answers *in er14 only* and returns the caller's er0 untouched | `0x17B16` diff-test, three wrong translations before the register image showed er14 right and er0 zero |
+| `SRLC Rn` vs `SLLC Rn` neighbour | `SLLC` takes its carry in from `r(N-1)`, `SRLC` from `r(N+1)` - opposite directions. So `0x1BB4E`'s `sllc r7,4 … sll r0,4` walk r0..r7 as one big-endian 64-bit value shifted left four, and `0x1BB28`'s `srlc r0,4 … srl r7,4` the same right (same for the nine-byte r1..r9 pair, `0x1BB3A`/`0x1BB60`). Consequence: a run of equal bytes is a poor test vector, because right-shifting it twice maps back onto itself |
+| return value of a register-only routine | `rt` writes nothing, so er0 comes back holding whatever the body left in r0/r1 - for the shift runs that is the *shifted* pair, not the caller's. Returning 0 "because it writes no result" is wrong |
 | `SLLC` / `SRLC` / `SRA` / `SRL` on a byte register | they are **not** eight-bit shifts: `SLLC Rn`/`SRLC Rn` shift the 16 bits of Rn *and the register below it* (`Rn-1`, wrapping to r15 for r0) and store the upper eight bits back in Rn, so `sllc r11, 4` moves `er10` and the low half is thrown away | Core manual §3, `SLLC Rn,obj`: "shifts the 16 bits in the specified byte-sized register and the register below it ... and stores the upper eight bits in the specified register" |
 | immediates | printed in **decimal** in `resource/disas.asm`: `add r2, 22` is +0x16 | `tools/disasm.py` |
 | `[ea+]` on a multi-byte access | the bump happens first and the result is rounded down to even *again*, so an odd `ea` stays usable | `load_store()`, `bump_ea()` in `emu/nx8.c` |

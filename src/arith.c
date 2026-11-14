@@ -84,6 +84,69 @@ uint16_t mul16(uint8_t *ds, uint16_t x, uint16_t y)
     return (uint16_t)((uint32_t)x * (uint32_t)y);
 }
 
+/* 0x1BB28, 0x1BB3A, 0x1BB4E and 0x1BB60 are one idea written four times: a
+ * multi-byte shift by four bits carried through the byte chain, once to the
+ * right over r0..r7, once over r1..r9, and the same two ranges to the left.
+ *
+ * `SRLC rN, 4` shifts the sixteen bits of rN and the register *above* it and
+ * keeps the low byte: rN = (rN >> 4) | ((r[N+1] & 0x0F) << 4).  `SLLC rN, 4`
+ * does the same with the register *below*: rN = ((rN & 0x0F) << 4) | (r[N-1] >> 4).
+ * Walking the right shift upwards and the left shift downwards means every step
+ * reads a neighbour that has not been rewritten yet, which is why the C loops
+ * go in the same direction as the ROM.  The last step of each run is a plain
+ * `srl`/`sll` with no neighbour and no carry.  There is no explicit return
+ * value either: er0 simply comes back holding whatever the shift left in r0 and
+ * r1, which for the right shift is the old value truncated. */
+static void shift_bytes_right4(uint8_t *r, int first, int count)
+{
+    int last = first + count - 1;
+
+    for (int i = first; i < last; i++)
+        r[i] = (uint8_t)((r[i] >> 4) | ((r[i + 1] & 0x0Fu) << 4));
+    r[last] = (uint8_t)(r[last] >> 4);
+}
+
+static void shift_bytes_left4(uint8_t *r, int first, int count)
+{
+    int last = first + count - 1;
+
+    for (int i = last; i > first; i--)
+        r[i] = (uint8_t)(((r[i] & 0x0Fu) << 4) | (r[i - 1] >> 4));
+    r[first] = (uint8_t)(r[first] << 4);
+}
+
+/* 0x1BB28 - the eight-byte value r0..r7 shifted right four bits. */
+uint16_t shift_qr0_right4(uint8_t *ds, uint8_t *r)
+{
+    (void)ds;
+    shift_bytes_right4(r, 0, 8);
+    return (uint16_t)(r[0] | ((uint16_t)r[1] << 8));
+}
+
+/* 0x1BB3A - the same over the nine bytes r1..r9. */
+uint16_t shift_r1_r9_right4(uint8_t *ds, uint8_t *r)
+{
+    (void)ds;
+    shift_bytes_right4(r, 1, 9);
+    return (uint16_t)(r[0] | ((uint16_t)r[1] << 8));
+}
+
+/* 0x1BB4E - r0..r7 shifted left four bits. */
+uint16_t shift_qr0_left4(uint8_t *ds, uint8_t *r)
+{
+    (void)ds;
+    shift_bytes_left4(r, 0, 8);
+    return (uint16_t)(r[0] | ((uint16_t)r[1] << 8));
+}
+
+/* 0x1BB60 - the same over r1..r9. */
+uint16_t shift_r1_r9_left4(uint8_t *ds, uint8_t *r)
+{
+    (void)ds;
+    shift_bytes_left4(r, 1, 9);
+    return (uint16_t)(r[0] | ((uint16_t)r[1] << 8));
+}
+
 /* 0x2406C - the shift count behind a byte's highest set bit: shift left until a
  * bit leaves the top, counting down from 9, and answer 16 instead when the byte
  * was exactly 0x80 (the shift lands on zero).  Everything below 3 is returned
