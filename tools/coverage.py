@@ -29,8 +29,8 @@ def main():
     args = parser.parse_args()
 
     db = romdb.load_db()
-    bodies = romdb.routine_bodies(db)
-    done = romdb.implemented_addrs(db)
+    bodies = romdb.function_bodies(db)
+    done = romdb.implemented_functions(db)
 
     total_insns = sum(count for count, _ in bodies.values())
     done_insns = sum(bodies[addr][0] for addr in done)

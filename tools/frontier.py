@@ -2,7 +2,7 @@
 
 Usage: python3 tools/frontier.py [-n N] [-a]
 
-Lists ROM routines whose *callees* are all already implemented in C.  Those are
+Lists ROM functions whose *callees* are all already implemented in C.  Those are
 the routines that can be translated next: their C version can be diff-tested
 against the ROM right away because everything they call already has a C body
 with the same behaviour.
@@ -29,8 +29,8 @@ def main():
     args = parser.parse_args()
 
     db = romdb.load_db()
-    bodies = romdb.routine_bodies(db)
-    done = romdb.available_addrs(db)
+    bodies = romdb.function_bodies(db)
+    done = romdb.available_addrs(db) | romdb.implemented_functions(db)
     labels = {int(a, 16): n for a, n in db["labels"].items()}
 
     ready = []

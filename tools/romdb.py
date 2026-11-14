@@ -60,8 +60,11 @@ def routine_entries(db):
 def routine_bodies(db):
     """entry -> (instruction count, set of callees).
 
-    A body runs from its entry until the first `rt`/`rti`/unconditional `b`
-    or the next routine entry, whichever comes first.
+    A chunk runs from its entry until the first `rt`/`rti`/unconditional `b`
+    or the next routine entry, whichever comes first.  Chunks are not functions:
+    the compiler emits `.l_NNN` labels inside a function body for its internal
+    branches, and each of those is an entry too.  Use function_bodies() to get
+    the whole function.
     """
     insns = {int(i["addr"], 16): i for i in db["insns"]}
     ordered = sorted(routine_entries(db))
@@ -85,6 +88,82 @@ def routine_bodies(db):
                 break
             cur += insn["length"]
         out[entry] = (count, callees)
+    return out
+
+
+def _entry_names(db):
+    return {int(addr, 16): name for addr, name in db["labels"].items()}
+
+
+def entry_owners(db):
+    """entry -> the function entry it belongs to.
+
+    A label that does not start with `.` starts a function; the `.l_NNN`
+    labels that follow are internal chunks of it.  This is the rule that makes
+    a function's callees complete: 0x0C362 looks self-contained until you see
+    that its `.l_028` chunk calls 0x24F26.
+    """
+    names = _entry_names(db)
+    owners = {}
+    current = None
+    for entry in sorted(routine_entries(db)):
+        if not names.get(entry, "").startswith("."):
+            current = entry
+        if current is None:
+            current = entry
+        owners[entry] = current
+    return owners
+
+
+def _successors(insn, addr, next_addr):
+    """Addresses control can reach from `addr`: a call returns, so it falls
+    through; `b` does not; a conditional branch does both."""
+    mnemonic = insn["mnemonic"]
+    if mnemonic in ("rt", "rti", "brk"):
+        return []
+    target = None
+    for param in insn["params"]:
+        if isinstance(param, list) and len(param) == 2 and param[1] == "lab":
+            target = param[0]
+    if mnemonic == "b":
+        return [target] if target is not None else []
+    if mnemonic == "bl" or target is None:
+        return [next_addr]
+    return [target, next_addr]
+
+
+def function_bodies(db):
+    """function entry -> (instruction count, callees) over its whole body.
+
+    A function owns everything from its entry up to the next function entry.
+    Inside that span only the instructions control can actually reach count,
+    which keeps the data regions (which disassemble as instructions too) out
+    of the total, and a small control-flow walk follows branches that jump
+    *over* an unconditional `b` into a later block - exactly the shape that hid
+    0x24F26 behind 0x0C362's `b LEAVE`.
+    """
+    insns = {int(i["addr"], 16): i for i in db["insns"]}
+    owners = sorted(set(entry_owners(db).values()))
+
+    out = {}
+    for index, owner in enumerate(owners):
+        end = owners[index + 1] if index + 1 < len(owners) else 1 << 20
+        seen = set()
+        stack = [owner]
+        callees = set()
+        while stack:
+            addr = stack.pop()
+            if addr in seen or addr < owner or addr >= end or addr not in insns:
+                continue
+            seen.add(addr)
+            insn = insns[addr]
+            if insn["mnemonic"] == "bl":
+                for param in insn["params"]:
+                    if isinstance(param, list) and len(param) == 2:
+                        callees.add(param[0])
+            stack.extend(_successors(insn, addr, addr + insn["length"]))
+        callees.discard(owner)
+        out[owner] = (len(seen), callees)
     return out
 
 
@@ -155,3 +234,9 @@ def implemented_addrs(db, root=ROOT):
 def available_addrs(db, root=ROOT):
     """Everything a caller may rely on: translated bodies plus frame plumbing."""
     return implemented_addrs(db, root) | STRUCTURAL_ENTRIES
+
+
+def implemented_functions(db, root=ROOT):
+    """Function entries that have a C body (an annotation on any of its chunks)."""
+    owners = entry_owners(db)
+    return {owners[addr] for addr in implemented_addrs(db, root) if addr in owners}

@@ -20,13 +20,20 @@ a TODO note, a prose range such as `0x0AC30-0x0C000`, or a data argument like
 be inflated without writing a function.  Both tools share this rule through
 `tools/romdb.py`.
 
-Routine bodies and sizes come from `build/disas.json`, so the two numbers are
-measured on the same partition:
+A routine here is a *function*, not a chunk: `f_XXXXX` entries own the
+`.l_NNN` blocks that follow them, and only the instructions control can reach
+inside that span are counted.  Counting chunks instead (the older rule, which
+stopped at the first `b`) hid callees and under-counted bodies - 0x0C362 looked
+like a 17-instruction leaf until the walk followed its `bc ne` past the
+`b LEAVE` into the `.l_028` block that calls 0x24F26.
+
+Bodies and sizes come from `build/disas.json`, so the two numbers are measured
+on the same partition:
 
 | metric | current |
 | --- | --- |
-| routines | 119 / 1113 (10.7%) |
-| instructions | 2647 / 27414 (9.7%) |
+| routines | 120 / 768 (15.6%) |
+| instructions | 3338 / 32764 (10.2%) |
 
 (Measured with `python3 tools/coverage.py`; the instruction total counts the
 ret/rt-delimited bodies the tooling treats as one routine each, not every word
