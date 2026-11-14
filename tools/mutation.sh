@@ -21,7 +21,7 @@ TESTS="tests/main.c tests/harness.c tests/batch.c tests/t_string.c tests/t_mem.c
        tests/t_record.c tests/t_arith.c tests/t_emu.c"
 
 BKDIR=$(mktemp -d)
-trap 'rm -rf "$BKDIR"' EXIT
+trap 'rm -rf "$BKDIR"; rm -f build/mutant' EXIT
 mkdir -p build
 
 # mutate <name> <file> <perl-substitution>
