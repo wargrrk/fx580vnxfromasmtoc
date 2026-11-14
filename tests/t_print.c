@@ -80,6 +80,76 @@ static void check_addr(uint32_t impl, const char *what, uint16_t xy, uint8_t cur
     }
 }
 
+/* 0x093C0 - the sibling entry that takes the packed (value, mask) word in er0
+ * and the byte address in er2.  Its guard refuses everything up to and
+ * including 0xDDEB, so the address list straddles that byte; the modes are the
+ * five the dispatch knows plus one that falls through to XOR. */
+static void test_screen_blit_masked(void)
+{
+    static const uint16_t addrs[] = {0xDDEA, 0xDDEB, 0xDDEC, 0xDE00, 0xE3D4,
+                                     0xE9D3, 0xE9D4, 0xF800, 0xF900, 0x0100};
+    static const uint8_t modes[] = {0, 1, 2, 3, 4, 5, 255};
+    static const uint16_t vms[] = {0xFF0F, 0x0F0F, 0x00F0, 0xFF80, 0x01C0,
+                                   0x0000, 0xFFFF, 0xFFFFu};
+
+    for (size_t a = 0; a < sizeof(addrs) / sizeof(addrs[0]); a++) {
+        for (size_t m = 0; m < sizeof(modes) / sizeof(modes[0]); m++) {
+            for (size_t k = 0; k < sizeof(vms) / sizeof(vms[0]); k++) {
+                random_image((uint32_t)(a * 811 + m * 53 + k * 11 + 21000));
+                image[0xD138] = modes[m];
+                Args args = {.er = {vms[k], addrs[a]}, .nstk = 0};
+                uint16_t rom_ret = run_rom(0x093C0, &args, "screen_blit_masked");
+                begin_c();
+                uint16_t c_ret = screen_blit_masked(after_c, vms[k], addrs[a]);
+                check_ret("screen_blit_masked", rom_ret, c_ret);
+                check_mem_all("screen_blit_masked");
+            }
+        }
+    }
+}
+
+/* 0x09834 / 0x09826 - the rectangle fill.  The interesting inputs are the
+ * byte-straddling ones: an x that is not a multiple of 8, a width that ends
+ * mid-byte, and the two edges the guard allows (x + w == 192, y + h == 64)
+ * next to the ones it rejects. */
+static void test_fill_rect(void)
+{
+    static const uint16_t xys[] = {0x0000, 0x0205, 0x0203, 0x003E, 0x3FBF,
+                                   0x3FC0, 0x0101, 0x0700};
+    /* h == 0 is deliberately absent: the row counter then runs 256 times, the
+     * fill walks out of the buffer into the stack at 0xEC00+ and overwrites the
+     * routine's own frame, so what the ROM does after that depends on bytes the
+     * harness does not compare.  Every real caller passes h = 14. */
+    static const uint16_t sizes[] = {0x0101, 0x030A, 0x0114, 0x0103, 0x023F,
+                                     0x02C0, 0x0140, 0x0120, 0x0207};
+    static const uint8_t modes[] = {0, 1, 2, 3, 4};
+
+    for (size_t a = 0; a < sizeof(xys) / sizeof(xys[0]); a++) {
+        for (size_t z = 0; z < sizeof(sizes) / sizeof(sizes[0]); z++) {
+            for (size_t m = 0; m < sizeof(modes) / sizeof(modes[0]); m++) {
+                random_image((uint32_t)(a * 613 + z * 47 + m * 5 + 33000));
+                image[0xD138] = modes[m];
+                image[0xD139] = 1;
+                Args args = {.er = {xys[a], sizes[z]}, .nstk = 0};
+                uint16_t rom_ret = run_rom(0x09834, &args, "fill_rect_solid");
+                begin_c();
+                uint16_t c_ret = fill_rect_solid(after_c, xys[a], sizes[z]);
+                check_ret("fill_rect_solid", rom_ret, c_ret);
+                check_mem_all("fill_rect_solid");
+
+                random_image((uint32_t)(a * 613 + z * 47 + m * 5 + 34000));
+                image[0xD138] = modes[m];
+                image[0xD139] = 0;
+                uint16_t rom_clr = run_rom(0x09826, &args, "fill_rect_clear");
+                begin_c();
+                uint16_t c_clr = fill_rect_clear(after_c, xys[a], sizes[z]);
+                check_ret("fill_rect_clear", rom_clr, c_clr);
+                check_mem_all("fill_rect_clear");
+            }
+        }
+    }
+}
+
 static void test_screen_addr(void)
 {
     static const uint16_t xys[] = {
@@ -403,6 +473,8 @@ static void test_decompress_print(void)
 void test_print(void)
 {
     test_screen_blend();
+    test_screen_blit_masked();
+    test_fill_rect();
     test_screen_addr();
     test_screen_pixel();
     test_char_print();

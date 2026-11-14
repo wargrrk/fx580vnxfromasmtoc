@@ -29,6 +29,22 @@ void test_arith(void)
         {"key_repeat_gate", 0x28414, "w|w", a_key_repeat_gate, 0},
     );
 
+    /* 0x298E2 - the two rows come from the pointer table at 0x07AC2, so run it
+     * against every buffer/mode combination the screen path can see: the
+     * scratch lives at the top of the stack, which the harness does not
+     * compare, and everything else must match byte for byte. */
+    for (uint32_t seed = 0; seed < 4; seed++) {
+        uint16_t buffer = STACK_TOP;
+        random_image(0x298E2u + seed * 7919u);
+        image[0xD138] = (uint8_t)(seed & 1);
+        image[0xD139] = (uint8_t)((seed >> 1) & 1);
+        Args args = {.nstk = 0};
+        run_rom(0x298E2, &args, "print_indexed_rows");
+        begin_c();
+        print_indexed_rows(after_c, buffer);
+        check_mem_all("print_indexed_rows");
+    }
+
     /* 0x28414 - the four repeat-key codes are the only interesting ones, so
      * walk them against every low byte the caller can supply and a row byte on
      * both sides of the limit.  0xFC1D divides by the low byte, so zero and one

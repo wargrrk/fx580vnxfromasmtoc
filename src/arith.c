@@ -18,6 +18,7 @@
 #include "draw.h"
 #include "hw.h"
 #include "keyboard.h"
+#include "print.h"
 
 #define RAM_START 0xD000u
 
@@ -211,5 +212,47 @@ uint16_t key_repeat_gate(uint8_t *ds, uint16_t arg, const uint16_t *stk)
 
     default:
         return code;
+    }
+}
+
+/* 0x298E2 - print the two indexed rows "1: <text>" and "2: <text>".
+ *
+ * The frame carries a three-byte label ("1:", NUL) at its top and a 36-byte
+ * scratch buffer below it.  Each pass copies the label in, appends the string
+ * whose pointer comes from the ROM table at 0x07AC2 (indexed by the loop
+ * counter in words, read through the data space like every other pointer),
+ * prints it at column 0 and row 16 * i + 1, then bumps the label digit with
+ * `inc [ea]` so the second row reads "2:".  The font is set to 14 first, which
+ * is what makes a 16-pixel row pitch the right one.
+ *
+ * `buffer` is the caller's stand-in for the ROM's own frame: the scratch exists
+ * only inside the routine, so the C side needs somewhere in the data space to
+ * put it and the tests pass the top of the stack, which is the same region the
+ * ROM uses and the one the harness keeps out of the comparison.
+ *
+ * `b LEAVE` hands back whatever line_print left in er0, so there is no result
+ * of its own. */
+void print_indexed_rows(uint8_t *ds, uint16_t buffer)
+{
+    uint16_t text = buffer;
+    uint16_t label = (uint16_t)(buffer + 36);
+
+    ds[label] = '1';
+    ds[(uint16_t)(label + 1)] = ':';
+    ds[(uint16_t)(label + 2)] = 0;
+    ds[0xD137] = 14;
+
+    for (uint8_t index = 0; index <= 1; index++) {
+        uint16_t table = (uint16_t)(0x07AC2u + 2u * index);
+        uint16_t pointer = (uint16_t)(ds[table] |
+                                      ((uint16_t)ds[(uint16_t)(table + 1)] << 8));
+        uint16_t str = (uint16_t)(ds[pointer] |
+                                  ((uint16_t)ds[(uint16_t)(pointer + 1)] << 8));
+        uint16_t xy = (uint16_t)((uint16_t)((index << 4) + 1) << 8);
+
+        smart_strcpy_nn(ds, text, label);
+        smart_strcat_nn(ds, text, str);
+        line_print(ds, xy, text, NULL);
+        ds[label]++;
     }
 }

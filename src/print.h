@@ -18,8 +18,19 @@
 /* 0x093D2: blend `value` into one screen byte according to the draw mode at
  * 0xD138.  `mask` selects the bits that participate.  `value` is and-ed with
  * `mask` first (unless the mask is zero). */
-void screen_blend(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask);
+uint16_t screen_blend(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask);
 void screen_blend_immediate(uint8_t *ds, uint16_t addr, uint8_t value, uint8_t mask);
+
+/* 0x093C0 - the same merge entered with a packed (value, mask) word and an
+ * absolute byte address; returns the r0/r1 pair the ROM has at its `rt`.  The
+ * guard here is `0xDDEB >= addr`, so row 0 of buffer 1 is out of reach. */
+uint16_t screen_blit_masked(uint8_t *ds, uint16_t value_mask, uint16_t addr);
+
+/* 0x09834 / 0x09826 - fill or clear a rectangle; `xy` is (y << 8) | x and
+ * `size` is (h << 8) | w.  Both return the running address the ROM leaves in
+ * er0, which is the caller's to ignore. */
+uint16_t fill_rect_solid(uint8_t *ds, uint16_t xy, uint16_t size);
+uint16_t fill_rect_clear(uint8_t *ds, uint16_t xy, uint16_t size);
 
 /* 0x091E2 / 0x091E6 / 0x091EA - set or clear one pixel in the current buffer.
  * The three entry points share one body: 0x091E2 sets without checking bounds

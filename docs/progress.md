@@ -59,6 +59,8 @@ the core manual (`resource/nX-U8100 Core Instruction Manual.txt`) or against
 | `[ea+]` on a multi-byte access | the bump happens first and the result is rounded down to even *again*, so an odd `ea` stays usable | `load_store()`, `bump_ea()` in `emu/nx8.c` |
 | multi-byte `st` | the bytes go out in **descending** address order (`ix = length-1 .. 0`) | `load_store()` in `emu/nx8.c` |
 | the `ENTER` frame | `push lr` pushes **lcsr and lr** (four bytes), so an `ENTER` frame is 16 bytes and the stacked arguments of a routine are at `16/18/20[er14]`, not `14/16/18` | `H_PUSHL` in `emu/nx8.c` (`mask & 8` pushes both) |
+| 16-bit shifts | written as an `sllc`/`sll` or `srlc`/`srl` pair on two adjacent bytes; the high byte first for a left shift and the low byte first for a right one, and the carry chains the halves | `op_sllc` / `op_srlc` in `emu/nx8.c`, confirmed by tracing `0x09834` |
+| subtracting a constant | `add rX, 240..255` then `bc lt` is a subtract that branches on the borrow: the branch is taken when the *carry out* is set, i.e. when the old value was ≥ the complement | traced at `0x098D6` in `0x09834` |
 | `BC AL` | condition nibble 14 really is unconditional; a backward `bc al` is a plain loop jump and the exit test sits at the loop head | §3.3 condition table (1000..1110 = NE, EQ, NV, OV, PS, NS, AL) |
 
 Consequence worth stating once: a block copy must not read and write one byte at
