@@ -95,4 +95,23 @@ uint16_t row_limit_for_mode(uint8_t *ds);
 /* 0x0AC40 - signed distance between the argument and the byte at 0xD010. */
 uint16_t distance_from_0D010(uint8_t *ds, uint16_t value);
 
+/* 0x1D94A - high nibble of the byte at `addr`. */
+uint16_t byte_high_nibble(uint8_t *ds, uint16_t addr);
+
+/* 0x2082C / 0x20834 - high and low nibble of the state byte at 0xD118. */
+uint16_t state_high_nibble(uint8_t *ds);
+uint16_t state_low_nibble(uint8_t *ds);
+
+/* 0x20860 - write the state byte at 0xD118, clear 0xD148, return 0. */
+uint16_t state_store(uint8_t *ds, uint16_t value);
+
+/* 0x14C9C - add 0xFF34 to the argument. */
+uint16_t offset_minus_cc(uint8_t *ds, uint16_t value);
+
+/* 0x09FD8 - byte at 0xF014. */
+uint16_t read_0F014(uint8_t *ds);
+
+/* 0x29978 - constant 4. */
+uint16_t constant_four(uint8_t *ds);
+
 #endif

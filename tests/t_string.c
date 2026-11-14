@@ -240,6 +240,20 @@ void test_string(void)
         check_ret("hex_byte", rom_ret, hex_byte((uint8_t)value));
     }
 
+    /* 0x20EA4 - append the fixed string at 0x1DE5 */
+    for (int rep = 0; rep < 6; rep++) {
+        random_image((uint32_t)(0x20EA4 + rep));
+        uint16_t p = (uint16_t)(0xD200 + (rnd() % 0x800));
+        after_c[p] = 0;
+        image[p] = 0;
+        Args args = {.er = {p}, .nstk = 0};
+        uint16_t rom_ret = run_rom(0x20EA4, &args, "append_string_1de5");
+        begin_c();
+        check_ret("append_string_1de5", rom_ret,
+                  append_string_1de5(after_c, p));
+        check_mem("append_string_1de5", RAM_BASE, CMP_END);
+    }
+
     /* 0x0ED88 - every byte, since the boundary at 0xF0 is the whole point */
     for (unsigned value = 0; value < 256; value++) {
         Args args = {.er = {(uint16_t)value}, .nstk = 0};

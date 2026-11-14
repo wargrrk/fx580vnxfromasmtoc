@@ -24,6 +24,13 @@ W0(editor_buffers_reset)
 W0(flag_13A_arm)
 W0(flag_13A_bit7)
 W0(state_predicate_2B3E2)
+W1(byte_high_nibble)
+W0(state_high_nibble)
+W0(state_low_nibble)
+W1(state_store)
+W1(offset_minus_cc)
+W0(read_0F014)
+W0(constant_four)
 
 void test_hw(void)
 {
@@ -49,5 +56,12 @@ void test_hw(void)
         {"flag_13A_arm", 0x09FE0, "", a_flag_13A_arm, 0},
         {"flag_13A_bit7", 0x09FFE, "", a_flag_13A_bit7, 0},
         {"state_predicate_2B3E2", 0x2B3E2, "", a_state_predicate_2B3E2, 0},
+        {"byte_high_nibble", 0x1D94A, "p", a_byte_high_nibble, 0},
+        {"state_high_nibble", 0x2082C, "", a_state_high_nibble, 0},
+        {"state_low_nibble", 0x20834, "", a_state_low_nibble, 0},
+        {"state_store", 0x20860, "b", a_state_store, 0},
+        {"offset_minus_cc", 0x14C9C, "w", a_offset_minus_cc, 0},
+        {"read_0F014", 0x09FD8, "", a_read_0F014, 0},
+        {"constant_four", 0x29978, "", a_constant_four, 0},
     );
 }

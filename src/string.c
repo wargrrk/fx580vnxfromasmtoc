@@ -356,3 +356,10 @@ uint16_t byte_is_lead(uint8_t *ds, uint16_t value)
     (void)ds;
     return ((uint8_t)value >= 0xF0u) ? 1 : 0;
 }
+
+/* 0x20EA4 - append the fixed string at 0x1DE5; the ROM loads that pointer into
+ * er2 and tail-calls the smart concatenation. */
+uint16_t append_string_1de5(uint8_t *ds, uint16_t dst)
+{
+    return smart_strcat_nn(ds, dst, 0x1DE5u);
+}

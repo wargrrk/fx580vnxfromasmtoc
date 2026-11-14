@@ -27,8 +27,9 @@ uint16_t smart_strlen_n(uint8_t *ds, uint16_t s);
 uint16_t smart_strcpy_nn(uint8_t *ds, uint16_t dst, uint16_t src);
 uint16_t smart_strcat_nn(uint8_t *ds, uint16_t dst, uint16_t src);
 
-/* string.c - 0x0ED88 */
+/* string.c - 0x0ED88, 0x20EA4 */
 uint16_t byte_is_lead(uint8_t *ds, uint16_t value);
+uint16_t append_string_1de5(uint8_t *ds, uint16_t dst);
 
 /* string.c - 0x24BD6 (pointer table) and 0x2AC9E (expanding copy) */
 uint16_t get_string_constant(uint8_t *ds, uint16_t index);

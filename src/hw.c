@@ -239,3 +239,52 @@ uint16_t state_predicate_2B3E2(uint8_t *ds)
         return 0;
     return ds[0xD116] == 1 ? 1 : 0;
 }
+
+/* 0x1D94A - the high nibble of the byte at `addr`.  The mask is an 8-bit
+ * `and r0, 240`, so only the low half of er0 is rewritten: the high byte of
+ * the address argument survives into the result. */
+uint16_t byte_high_nibble(uint8_t *ds, uint16_t addr)
+{
+    return (uint16_t)((addr & 0xFF00u) | (uint16_t)(ds[addr] & 0xF0u));
+}
+
+/* 0x2082C - the high nibble of the state byte at 0xD118. */
+uint16_t state_high_nibble(uint8_t *ds)
+{
+    return (uint16_t)(ds[0xD118] >> 4);
+}
+
+/* 0x20834 - the low nibble of the state byte at 0xD118. */
+uint16_t state_low_nibble(uint8_t *ds)
+{
+    return (uint16_t)(ds[0xD118] & 0x0Fu);
+}
+
+/* 0x20860 - store the low byte into 0xD118 and clear 0xD148; the routine then
+ * zeroes er0 itself, so the caller always sees 0. */
+uint16_t state_store(uint8_t *ds, uint16_t value)
+{
+    ds[0xD118] = (uint8_t)value;
+    ds[0xD148] = 0;
+    return 0;
+}
+
+/* 0x14C9C - add 0xFF34, i.e. subtract 0xCC, from the argument. */
+uint16_t offset_minus_cc(uint8_t *ds, uint16_t value)
+{
+    (void)ds;
+    return (uint16_t)(value + 0xFF34u);
+}
+
+/* 0x09FD8 - the byte at 0xF014, widened into er0. */
+uint16_t read_0F014(uint8_t *ds)
+{
+    return ds[0xF014];
+}
+
+/* 0x29978 - always returns 4 and touches nothing. */
+uint16_t constant_four(uint8_t *ds)
+{
+    (void)ds;
+    return 4;
+}
