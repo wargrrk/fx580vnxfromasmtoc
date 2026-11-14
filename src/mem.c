@@ -269,3 +269,48 @@ void init_numeric_state(uint8_t *ds)
     for (size_t i = 0; i < 10; i++)
         ds[(uint16_t)(0xD010u + i)] = state[i];
 }
+
+/* 0x0E5A0 - fill a 10-byte record with the "6 / 0x55 / 0x36" template.  The
+ * `4, 1` pair goes to bytes 8 and 9 and is also what the routine returns. */
+uint16_t record_template_06(uint8_t *ds, uint16_t dst)
+{
+    memzero(ds, dst, 10);
+    ds[dst] = 6;
+    ds[(uint16_t)(dst + 1)] = 85;
+    ds[(uint16_t)(dst + 2)] = 54;
+    /* `st er0, 8[er8]` is a 16-bit access, and the nX-U8 ignores A0 for those,
+     * so an odd record address puts the pair at dst+7/dst+8. */
+    uint16_t pair = (uint16_t)((dst + 8u) & ~1u);
+    ds[pair] = 4;
+    ds[(uint16_t)(pair + 1)] = 1;
+    return 0x0104u;
+}
+
+/* 0x2F0B4 - the same template with 3 / 39 / 103 in the first three bytes. */
+uint16_t record_template_03(uint8_t *ds, uint16_t dst)
+{
+    memzero(ds, dst, 10);
+    ds[dst] = 3;
+    ds[(uint16_t)(dst + 1)] = 39;
+    ds[(uint16_t)(dst + 2)] = 103;
+    uint16_t pair = (uint16_t)((dst + 8u) & ~1u);
+    ds[pair] = 4;
+    ds[(uint16_t)(pair + 1)] = 1;
+    return 0x0104u;
+}
+
+/* 0x2502A - store one entry of the 0xDBE4 table: the offset (key minus the
+ * 0xD144 base) at 0xDBE6 + index*8 and the 16-bit value at 0xDBE4 + index*8.
+ * The subtraction is 8-bit, and r1 - the high half of the first argument - is
+ * never touched, so it ends up in the result word. */
+uint16_t table_slot_store(uint8_t *ds, uint16_t offset, uint16_t value,
+                          uint8_t index)
+{
+    uint16_t entry = (uint16_t)(0xDBE4u + (uint16_t)index * 8u);
+
+    ds[(uint16_t)(entry + 2)] = (uint8_t)((uint8_t)offset - ds[0xD144]);
+    ds[entry] = (uint8_t)value;
+    ds[(uint16_t)(entry + 1)] = (uint8_t)(value >> 8);
+    return (uint16_t)((offset & 0xFF00u) |
+                      (uint8_t)((uint8_t)offset - ds[0xD144]));
+}

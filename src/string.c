@@ -285,3 +285,13 @@ uint8_t expand_string_token(uint8_t *ds, uint16_t code, uint16_t output)
     ds[(uint16_t)(output + output_length)] = 0;
     return result;
 }
+
+/* 0x0E1E8 - copy a NUL-terminated string including its terminator: the ROM
+ * takes `byte_strlen_n(src) + 1` and memcpy's that many bytes. */
+uint16_t string_copy_with_nul(uint8_t *ds, uint16_t dst, uint16_t src)
+{
+    uint16_t n = (uint16_t)(byte_strlen_n(ds, src) + 1u);
+
+    memcpy_nn(ds, dst, src, n);
+    return dst;
+}

@@ -1,4 +1,5 @@
 #include "harness.h"
+#include "batch.h"
 
 #include <stdio.h>
 
@@ -14,6 +15,9 @@ int main(int argc, char **argv)
     test_keyboard();
     test_edit();
     test_diagnostic();
+    test_hw();
+    test_draw();
+    test_record();
     test_emu();
 
     printf("%d checks, %d failures\n", checks, failures);

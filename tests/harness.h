@@ -48,6 +48,9 @@ void test_print(void);
 void test_keyboard(void);
 void test_edit(void);
 void test_diagnostic(void);
+void test_hw(void);
+void test_draw(void);
+void test_record(void);
 void test_emu(void);
 
 #endif
